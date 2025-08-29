@@ -16,6 +16,9 @@ export class Producto {
     @Column({type:"float"})
     precio:number;
 
+    @Column({ type: 'int', default: 0 })
+   stock: number;
+
     @Column({type:"boolean",default:true})
     activo:boolean;
 

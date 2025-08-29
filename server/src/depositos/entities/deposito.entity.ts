@@ -4,7 +4,7 @@ import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
 export class Deposito {
 
     @PrimaryGeneratedColumn("identity")
-    id:number;
+    id_deposito:number;
 
     @Column({type:"text"})
     nombre:string;

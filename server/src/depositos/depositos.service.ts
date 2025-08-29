@@ -24,7 +24,7 @@ export class DepositosService {
   }
 
   async findOne(id: number) {
-    const deposito = await this.depositoRepository.findOneBy({id})
+    const deposito = await this.depositoRepository.findOneBy({id_deposito:id})
 
     if(deposito){
       return deposito
@@ -35,7 +35,7 @@ export class DepositosService {
 
   async update(id: number, updateDepositoDto: UpdateDepositoDto) {
     const deposito = await this.depositoRepository.preload({
-      id,
+      id_deposito:id,
       ...updateDepositoDto
     });
 

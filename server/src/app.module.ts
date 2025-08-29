@@ -14,7 +14,7 @@ import { DepositosModule } from './depositos/depositos.module';
           type: 'postgres',
           url:process.env.DB_URL,
           autoLoadEntities:true,//carga automaticamente las entidades
-          synchronize:false //los cambios en las tablas se sincronizan
+          synchronize:true //los cambios en las tablas se sincronizan
         }),
         CategoriasModule,
         LotesModule,

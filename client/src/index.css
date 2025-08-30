@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* View Transition API */
+:root { view-transition-name: none; }
+::view-transition { pointer-events: none }
+
+::view-transition-group(.vt-element-animation),
+::view-transition-group(.vt-element-animation-closing) {
+  animation-duration: 500ms;
+  animation-timing-function: cubic-bezier(0.38,0.49,0,1);
+}
+
+::view-transition-old(.vt-element-animation),
+::view-transition-new(.vt-element-animation),
+::view-transition-old(.vt-element-animation-closing),
+::view-transition-new(.vt-element-animation-closing) {
+  height: 100%;
+  min-height: 100%;
+  overflow: clip;
+  object-position: left top;
+}
+@keyframes vt-blur-in {
+  from { opacity: 0; filter: blur(36px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+@keyframes vt-blur-out {
+  from { opacity: 1; filter: blur(0); }
+  to   { opacity: 0; filter: blur(16px); }
+}
+
+/* Transición normal con blur */
+::view-transition-old(.vt-element-animation) {
+  animation: vt-blur-out 300ms both cubic-bezier(0.38,0.49,0,1);
+}
+::view-transition-new(.vt-element-animation) {
+  animation: vt-blur-in  300ms both cubic-bezier(0.38,0.49,0,1);
+}
+
+/* Transición “closing” con otra curva (opcional) */
+::view-transition-old(.vt-element-animation-closing) {
+  animation: vt-blur-out 280ms both cubic-bezier(.75,0,.41,-0.06);
+}
+::view-transition-new(.vt-element-animation-closing) {
+  animation: vt-blur-in  280ms both cubic-bezier(.75,0,.41,-0.06);
+}
+
+
+
+

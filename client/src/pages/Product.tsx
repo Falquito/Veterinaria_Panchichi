@@ -23,7 +23,7 @@ export default function Products() {
   } = useProducts();
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-100 p-6 ">
       <ProductHeader />
       <ProductMetrics {...metrics} />
       

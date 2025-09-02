@@ -9,12 +9,12 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-white ">
       {/* Sidebar siempre visible */}
-      <aside className="bg-white"><SidebarDemo /></aside>
+      <aside className="bg-white  "><SidebarDemo /></aside>
 
       {/* Contenido dinámico */}
-      <main className="flex-1 overflow-auto p-6 bg-gray-50">
+      <main className="flex-1 overflow-auto p-6 bg-gray-100   rounded-4xl ">
         {children ?? <Outlet />}
       </main>
     </div>

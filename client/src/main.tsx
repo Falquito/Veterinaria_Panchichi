@@ -5,7 +5,7 @@ import App from './App.tsx'
 import "./index.css";    // ← Esta línea ES OBLIGATORIA
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  <StrictMode >
     <App />
   </StrictMode>,
 )

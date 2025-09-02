@@ -9,9 +9,9 @@ function App() {
 
   return (
     <>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
+      <BrowserRouter >
+        <Routes >
+          <Route path="/" element={<Layout  />}>
             <Route index element={<Navigate to="/productos" replace />} />
             <Route path="productos" element={<Products />} />
             <Route path="depositos" element={<Depositos />} />

@@ -1,26 +1,91 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
+import { Categoria } from './entities/categoria.entity';
 
 @Injectable()
 export class CategoriasService {
-  create(createCategoriaDto: CreateCategoriaDto) {
-    return 'This action adds a new categoria';
+  constructor(
+    @InjectRepository(Categoria)
+    private readonly categoriaRepository: Repository<Categoria>,
+  ) {}
+
+  async create(createCategoriaDto: CreateCategoriaDto): Promise<Categoria> {
+    try {
+      // Verificar si ya existe una categoría con el mismo nombre
+      const existingCategoria = await this.categoriaRepository.findOne({
+        where: { nombre: createCategoriaDto.nombre }
+      });
+
+      if (existingCategoria) {
+        throw new ConflictException('Ya existe una categoría con ese nombre');
+      }
+
+      const categoria = this.categoriaRepository.create(createCategoriaDto);
+      return await this.categoriaRepository.save(categoria);
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      throw new Error(`Error al crear la categoría: ${error.message}`);
+    }
   }
 
-  findAll() {
-    return `This action returns all categorias`;
+  async findAll(): Promise<Categoria[]> {
+    return await this.categoriaRepository.find({
+      relations: ['productos'], // Incluir productos si los necesitas
+      order: { nombre: 'ASC' }
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} categoria`;
+  async findOne(id: number): Promise<Categoria> {
+    const categoria = await this.categoriaRepository.findOne({
+      where: { id },
+      relations: ['productos']
+    });
+
+    if (!categoria) {
+      throw new NotFoundException(`Categoría con ID ${id} no encontrada`);
+    }
+
+    return categoria;
   }
 
-  update(id: number, updateCategoriaDto: UpdateCategoriaDto) {
-    return `This action updates a #${id} categoria`;
+  async update(id: number, updateCategoriaDto: UpdateCategoriaDto): Promise<Categoria> {
+    const categoria = await this.findOne(id);
+
+    // Si se está actualizando el nombre, verificar que no exista otro con el mismo nombre
+    if (updateCategoriaDto.nombre && updateCategoriaDto.nombre !== categoria.nombre) {
+      const existingCategoria = await this.categoriaRepository.findOne({
+        where: { nombre: updateCategoriaDto.nombre }
+      });
+
+      if (existingCategoria) {
+        throw new ConflictException('Ya existe una categoría con ese nombre');
+      }
+    }
+
+    Object.assign(categoria, updateCategoriaDto);
+    return await this.categoriaRepository.save(categoria);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} categoria`;
+  async remove(id: number): Promise<void> {
+    const categoria = await this.findOne(id);
+    
+    // Verificar si tiene productos asociados
+    if (categoria.productos && categoria.productos.length > 0) {
+      throw new ConflictException('No se puede eliminar una categoría que tiene productos asociados');
+    }
+
+    await this.categoriaRepository.remove(categoria);
+  }
+
+  
+  async findByNombre(nombre: string): Promise<Categoria | null> {
+    return await this.categoriaRepository.findOne({
+      where: { nombre }
+    });
   }
 }

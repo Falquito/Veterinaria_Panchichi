@@ -18,9 +18,10 @@ import { DepositosModule } from './depositos/depositos.module';
         }),
         CategoriasModule,
         LotesModule,
-        DepositosModule
+        DepositosModule 
   ],
   controllers: [],
   providers: [],
 })
 export class AppModule{}
+

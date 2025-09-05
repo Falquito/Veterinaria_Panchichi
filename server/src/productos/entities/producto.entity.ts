@@ -1,5 +1,6 @@
 import { Categoria } from "src/categorias/entities/categoria.entity";
-import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Lote } from "src/lotes/entities/lote.entity";
+import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 @Entity()
 export class Producto {
@@ -16,9 +17,6 @@ export class Producto {
     @Column({type:"float"})
     precio:number;
 
-    @Column({ type: 'int', default: 0 })
-   stock: number;
-
     @Column({type:"boolean",default:true})
     activo:boolean;
 
@@ -30,6 +28,9 @@ export class Producto {
 
 
     //(N,1) para lotes
+    @OneToMany(() => Lote, (lote) => lote.idProducto,{eager:false})
+    lotes: Lote[];
+    
 
     
 }

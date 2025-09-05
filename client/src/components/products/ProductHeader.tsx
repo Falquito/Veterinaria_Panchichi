@@ -4,22 +4,7 @@ import { NewProductForm } from "../NewProductForm";
 import CategoryManager from "../CategoryManager";
 
 export function ProductHeader() {
-  // Handlers para los eventos del panel de categorías
-  const handleCategoryCreated = (category: { id: number; name: string; description?: string }) => {
-    console.log('Nueva categoría creada:', category);
-    // Aquí puedes actualizar el estado global de categorías si es necesario
-    // Por ejemplo: refetch categories, update context, etc.
-  };
 
-  const handleCategoryUpdated = (category: { id: number; name: string; description?: string }) => {
-    console.log('Categoría actualizada:', category);
-    // Actualizar estado global de categorías si es necesario
-  };
-
-  const handleCategoryDeleted = (categoryId: number) => {
-    console.log('Categoría eliminada con ID:', categoryId);
-    // Actualizar estado global de categorías si es necesario
-  };
 
   return (
     <div className="mb-8">

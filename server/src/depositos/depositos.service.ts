@@ -1,52 +1,74 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
+import { Deposito } from './entities/deposito.entity';
 import { CreateDepositoDto } from './dto/create-deposito.dto';
 import { UpdateDepositoDto } from './dto/update-deposito.dto';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Deposito } from './entities/deposito.entity';
-import { Repository } from 'typeorm';
-
 @Injectable()
 export class DepositosService {
-
-  @InjectRepository(Deposito)
-  private readonly depositoRepository:Repository<Deposito>
-
-  async create(createDepositoDto: CreateDepositoDto) {
-    const deposito = this.depositoRepository.create(createDepositoDto);
-
-
-    await this.depositoRepository.save(deposito)
-    return deposito;
+  constructor(
+    @InjectRepository(Deposito)
+    private readonly repo: Repository<Deposito>,
+  ) {}
+  // CREATE
+  async create(dto: CreateDepositoDto): Promise<Deposito> {
+    const entity = this.repo.create(dto);
+    return this.repo.save(entity);
   }
+  // READ (listado con búsqueda/paginación)
+  async findAll(opts?: {
+    q?: string;      // búsqueda por nombre/dirección
+    page?: number;   // página (1..N)
+    limit?: number;  // tamaño de página
+  }) {
+    const page  = Math.max(Number(opts?.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(opts?.limit ?? 10), 1), 100);
 
-  async findAll() {
-    return await this.depositoRepository.find();
-  }
 
-  async findOne(id: number) {
-    const deposito = await this.depositoRepository.findOneBy({id_deposito:id})
-
-    if(deposito){
-      return deposito
-    }else{
-      throw new NotFoundException()
+    const where: any[] = [];
+    if (opts?.q) {
+      where.push({ nombre: ILike(`%${opts.q}%`) });
+      where.push({ direccion: ILike(`%${opts.q}%`) });
     }
-  }
 
-  async update(id: number, updateDepositoDto: UpdateDepositoDto) {
-    const deposito = await this.depositoRepository.preload({
-      id_deposito:id,
-      ...updateDepositoDto
+
+    const [items, total] = await this.repo.findAndCount({
+      where: where.length ? where : undefined,
+      order: { nombre: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
-    return await this.depositoRepository.save(deposito);
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    };
   }
 
-  async remove(id: number) {
-    const deposito = await this.findOne(id)
 
-    await this.depositoRepository.remove(deposito)
+  // READ (detalle)
+    async findOne(id: string): Promise<Deposito> {
+      const dep = await this.repo.findOneBy({id_deposito:+id}); // si pongo id da error
+      if (!dep) throw new NotFoundException('Depósito no encontrado');
+      return dep;
+    }
+  // UPDATE
+  async update(id: string, dto: UpdateDepositoDto): Promise<Deposito> {
+    const dep = await this.findOne(id);
+    Object.assign(dep, dto);
+    return this.repo.save(dep);
+  }
+  // DELETE
 
-    return deposito;
+  async remove(id: string) {
+    const dep = await this.findOne(id);
+    dep.activo=false
+    return await this.repo.save(dep);;
   }
 }
+
+

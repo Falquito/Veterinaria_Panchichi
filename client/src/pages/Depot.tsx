@@ -1,12 +1,112 @@
-import { Modal, ModalTrigger, ModalBody, ModalContent } from "../components/ui/animated-modal";
-import { Plus } from "lucide-react";
+// client/src/pages/Depot.tsx
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, ModalBody, ModalContent, useModal } from "../components/ui/animated-modal";
+import { Plus, Edit, Trash2 } from "lucide-react";
+import { DepotForm } from '../components/depots/DepotForm';
+import * as depotService from '../services/depotService';
+import type { Depot, NewDepotPayload, UpdateDepotPayload } from '../types/depot';
 
-export default function Depositos() {
-  const datos = [
-    { nombre: "Depósito Central", ubicacion: "Buenos Aires, Argentina", capacidadPct: 85, usado: 8500, total: 10000, responsable: "Juan Pérez", estado: { label: "Activo", color: "bg-green-100 text-green-700" } },
-    { nombre: "Depósito Norte", ubicacion: "Córdoba, Argentina", capacidadPct: 62, usado: 4650, total: 7500, responsable: "María González", estado: { label: "Activo", color: "bg-green-100 text-green-700" } },
-    { nombre: "Depósito Sur", ubicacion: "Mendoza, Argentina", capacidadPct: 94, usado: 4700, total: 5000, responsable: "Carlos Rodríguez", estado: { label: "Mantenimiento", color: "bg-orange-100 text-orange-700" } },
-  ];
+// El componente principal de la página, ahora sin el wrapper al final
+function DepotPageContent() {
+  const [depots, setDepots] = useState<Depot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editingDepot, setEditingDepot] = useState<Depot | null>(null);
+  const { setOpen } = useModal(); // Hook para controlar el modal
+
+  const fetchDepots = useCallback(async () => {
+  try {
+    setLoading(true);
+    const resp = await depotService.listDepots();
+
+   
+    const arr =
+      Array.isArray(resp) ? resp :
+      Array.isArray((resp as any)?.data) ? (resp as any).data :
+      Array.isArray((resp as any)?.rows) ? (resp as any).rows :
+      Array.isArray((resp as any)?.result) ? (resp as any).result :
+      [];
+
+    setDepots(arr as Depot[]);
+    setError(null);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Error al cargar los depósitos');
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+  useEffect(() => {
+    fetchDepots();
+  }, [fetchDepots]);
+
+  const handleCreate = async (data: NewDepotPayload) => {
+    await depotService.createDepot(data);
+    await fetchDepots();
+  };
+
+  const handleUpdate = async (data: UpdateDepotPayload) => {
+    if (!editingDepot) return;
+    await depotService.updateDepot(editingDepot.id_deposito, data);
+    await fetchDepots();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este depósito?')) {
+      try {
+        await depotService.deleteDepot(id);
+        await fetchDepots();
+      } catch (err) {
+        alert(`Error al eliminar: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+      }
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingDepot(null);
+    setOpen(true);
+  };
+
+  const openEditModal = (depot: Depot) => {
+    setEditingDepot(depot);
+    setOpen(true);
+  };
+  
+  const renderContent = () => {
+    if (loading) return <div className="p-4 text-center">Cargando depósitos...</div>;
+    if (error) return <div className="p-4 text-center text-red-600">Error: {error}</div>;
+    if (depots.length === 0) return <div className="p-4 text-center">No hay depósitos registrados.</div>;
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-neutral-50 text-left">
+              <th className="px-4 py-3 font-medium">Depósito</th>
+              <th className="px-4 py-3 font-medium">Dirección</th>
+              <th className="px-4 py-3 font-medium">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {depots.map((depot) => (
+              <tr key={depot.id_deposito} className="border-t border-neutral-200 hover:bg-neutral-50/60">
+                <td className="px-4 py-3">{depot.nombre}</td>
+                <td className="px-4 py-3">{depot.direccion}</td>
+                <td className="px-4 py-3 text-neutral-500">
+                  <button onClick={() => openEditModal(depot)} className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg mr-2">
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDelete(depot.id_deposito)} className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="w-full">
@@ -15,78 +115,41 @@ export default function Depositos() {
           <h2 className="text-2xl font-bold">Depósitos</h2>
           <p className="text-sm text-neutral-500">Gestiona tus centros de almacenamiento</p>
         </div>
-<div className="flex items-center gap-3 w-full lg:w-auto">
-            <Modal>
-              <ModalTrigger className="inline-flex items-center gap-2 rounded-lg bg-black hover:bg-gray-800 text-white px-4 py-3 lg:py-2.5 text-sm font-medium transition-colors duration-200 w-full lg:w-auto justify-center">
-                <Plus className="w-4 h-4" />
-                <span className="lg:hidden">Agregar Producto</span>
-                <span className="hidden lg:inline">Nuevo Depósito</span>
-              </ModalTrigger>
-              <ModalBody>
-                <ModalContent>
-                 <h1>Formulario para cargar Depositos.... </h1>{ /*DepotForm*/}
-                </ModalContent>
-              </ModalBody>
-            </Modal>
-          </div>     
-           </div>
+        <button
+          onClick={openCreateModal}
+          className="inline-flex items-center gap-2 rounded-lg bg-black hover:bg-gray-800 text-white px-4 py-2.5 text-sm font-medium"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Nuevo Depósito</span>
+        </button>
+      </div>
 
       <div className="rounded-lg border border-neutral-200 bg-white">
-        <div className="p-4 border-b border-neutral-200 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-base font-semibold">Lista de Depósitos</div>
-            <p className="text-sm text-neutral-500">{datos.length} depósitos registrados</p>
-          </div>
-          <div className="w-full md:w-72">
-            <input placeholder="Buscar depósitos..." className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-neutral-400" />
-          </div>
+        <div className="p-4 border-b">
+          <p className="font-semibold">Lista de Depósitos</p>
+          <p className="text-sm text-neutral-500">{depots.length} depósitos registrados</p>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="bg-neutral-50 text-left">
-                <th className="px-4 py-3 font-medium">Depósito</th>
-                <th className="px-4 py-3 font-medium">Ubicación</th>
-                <th className="px-4 py-3 font-medium">Capacidad</th>
-                <th className="px-4 py-3 font-medium">Responsable</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {datos.map((d, i) => (
-                <tr key={i} className="border-t border-neutral-200 hover:bg-neutral-50/60">
-                  <td className="px-4 py-3">{d.nombre}</td>
-                  <td className="px-4 py-3">{d.ubicacion}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3 min-w-[260px]">
-                      <span className="w-10 tabular-nums">{d.capacidadPct}%</span>
-                      <div className="flex-1">
-                        <div className="h-2 rounded-full bg-neutral-200 overflow-hidden">
-                          <div
-                            className={`h-2 rounded-full ${d.capacidadPct < 70 ? 'bg-green-600' : d.capacidadPct < 90 ? 'bg-yellow-500' : 'bg-red-600'}`}
-                            style={{ width: `${d.capacidadPct}%` }}
-                          />
-                        </div>
-                        <div className="text-[11px] text-neutral-500 mt-1 tabular-nums">{d.usado.toLocaleString()}/{d.total.toLocaleString()}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">{d.responsable}</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-md text-xs ${d.estado.color}`}>{d.estado.label}</span></td>
-                  <td className="px-4 py-3 text-neutral-500">
-                    <button className="px-2 py-1 text-xs rounded-md border border-neutral-300 mr-2">Editar</button>
-                    <button className="px-2 py-1 text-xs rounded-md border border-neutral-300">Eliminar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {renderContent()}
       </div>
+
+      {/* El modal ahora se renderiza aquí */}
+      <ModalBody>
+        <ModalContent>
+          <DepotForm
+            onSubmit={editingDepot ? handleUpdate : handleCreate}
+            initialData={editingDepot}
+          />
+        </ModalContent>
+      </ModalBody>
     </div>
   );
 }
 
-
+// Componente final que exportamos, ahora sí con el Provider del Modal
+export default function Depositos() {
+  return (
+    <Modal>
+      <DepotPageContent />
+    </Modal>
+  );
+}

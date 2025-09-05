@@ -1,12 +1,72 @@
-import { Edit, Trash2 } from "lucide-react";
+// src/components/products/ProductTable.tsx - Actualización
+import { useEffect, useMemo } from "react";
+import { useOptimistic } from "react";
+import { ProductEmptyState } from "./ProductEmptyState";
+import { ProductRow } from "./ProductRow";
+import { useProducts } from "../../hooks/useProducts";
 import type { Product } from "../../types/product";
-import { getCategoryIcon, getStockIcon, getStockColor } from "../../utils/productUtils";
+import type { StockFilter, StatusFilter } from "../../hooks/useProducts";
 
 interface ProductTableProps {
-  products: Product[];
+  search?: string;
+  category?: string;
+  stockFilter?: StockFilter;
+  statusFilter?: StatusFilter;
+  onClearFilters?: () => void;
+  onEdit?: (p: Product) => void;
+  onViewWarehouses?: (p: Product) => void; // Nueva prop
+  refreshKey?: number;
+  onRegisterOptimistic?: (
+    apply: (partial: Partial<Product> & { id: number }) => void
+  ) => void;
 }
 
-export function ProductTable({ products }: ProductTableProps) {
+export function ProductTable({
+  search = "",
+  category = "Todos",
+  stockFilter = "Todos",
+  statusFilter = "Activos",
+  onClearFilters,
+  onEdit,
+  onViewWarehouses, // Nueva prop
+  refreshKey = 0,
+  onRegisterOptimistic,
+}: ProductTableProps) {
+  const {
+    products: baseProducts,
+    loading,
+    error,
+    colorMap,
+    getCategoriaNombre,
+    handleEdit,
+    handleArchive,
+    handleRestore,
+  } = useProducts({ search, category, stockFilter, statusFilter, refreshKey });
+
+  const [optimisticProducts, applyOptimistic] = useOptimistic<
+    Product[],
+    Partial<Product> & { id: number }
+  >(baseProducts, (state, partial) =>
+    state.map((p) => (p.id === partial.id ? { ...p, ...partial } : p))
+  );
+
+  useEffect(() => {
+    onRegisterOptimistic?.(applyOptimistic);
+  }, [onRegisterOptimistic, applyOptimistic]);
+
+  const rows = useMemo(() => {
+    const map = new Map<number, Product>();
+    for (const p of optimisticProducts) {
+      if (!p) continue;
+      map.set(p.id, p); 
+    }
+    return Array.from(map.values());
+  }, [optimisticProducts]);
+
+  if (loading) return <p className="p-4 text-gray-500">Cargando productos...</p>;
+  if (error) return <p className="p-4 text-red-500">{error}</p>;
+  if (rows.length === 0) return <ProductEmptyState onClearFilters={onClearFilters} />;
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -22,63 +82,19 @@ export function ProductTable({ products }: ProductTableProps) {
               <th className="px-4 lg:px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
+
           <tbody className="divide-y divide-gray-200">
-            {products.map((p, i) => (
-              <tr key={i} className="hover:bg-gray-50 transition-colors duration-150">
-                <td className="px-4 lg:px-6 py-4">
-                  <div className="flex items-center gap-3 lg:gap-4">
-                    <img 
-                      src={p.imagen} 
-                      alt={p.nombre} 
-                      className="h-10 w-10 lg:h-12 lg:w-12 rounded-lg object-cover border border-gray-200" 
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-gray-900 truncate">{p.nombre}</div>
-                      <div className="text-sm text-gray-500 truncate">{p.deposito}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="hidden lg:table-cell px-6 py-4 max-w-xs">
-                  <p className="text-sm text-gray-600 line-clamp-2">{p.descripcion}</p>
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    {getCategoryIcon(p.categoria)}
-                    <span className="text-sm text-gray-700 hidden sm:inline">{p.categoria}</span>
-                  </div>
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <div className="font-semibold text-gray-900 text-sm lg:text-base">
-                    {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(p.precio)}
-                  </div>
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    {getStockIcon(p.stock)}
-                    <span className={`text-sm font-medium ${getStockColor(p.stock)} hidden sm:inline`}>
-                      {p.stock} unidades
-                    </span>
-                    <span className={`text-sm font-medium ${getStockColor(p.stock)} sm:hidden`}>
-                      {p.stock}
-                    </span>
-                  </div>
-                </td>
-                <td className="hidden lg:table-cell px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${p.estado.color}`}>
-                    {p.estado.label}
-                  </span>
-                </td>
-                <td className="px-4 lg:px-6 py-4">
-                  <div className="flex gap-1 lg:gap-2">
-                    <button className="p-1.5 lg:p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button className="p-1.5 lg:p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
+            {rows.map((p) => (
+              <ProductRow
+                key={p.id}                                 
+                p={p}
+                badge={colorMap[getCategoriaNombre(p)]}
+                onEdit={onEdit ?? handleEdit}
+                onViewWarehouses={onViewWarehouses} // Pasar la nueva prop
+                onArchive={handleArchive}
+                onRestore={handleRestore}
+                
+              />
             ))}
           </tbody>
         </table>

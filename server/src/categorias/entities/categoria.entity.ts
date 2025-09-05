@@ -15,13 +15,17 @@ export class Categoria {
     descripcion?: string;
 
     @CreateDateColumn()
-    createdAt: Date;
+    createdat: Date;
 
     @UpdateDateColumn()
-    updatedAt: Date;
+    updatedat: Date;
 
-    @OneToMany(()=> Producto,(producto)=>producto.categoria)
+    @OneToMany(()=> Producto,(producto)=>producto.categoria,{eager:false})
     productos:Producto[];
 
     // (1,N) por parte de categoria
+
+
+    @Column({type:"bool"})
+    activo:boolean
 }

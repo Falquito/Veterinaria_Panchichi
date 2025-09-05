@@ -19,16 +19,16 @@ export class DepositosController {
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.depositosService.findOne(+id);
+    return this.depositosService.findOne(id);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateDepositoDto: UpdateDepositoDto) {
-    return this.depositosService.update(+id, updateDepositoDto);
+    return this.depositosService.update(id, updateDepositoDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.depositosService.remove(+id);
+    return this.depositosService.remove(id);
   }
 }

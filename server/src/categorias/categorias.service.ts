@@ -34,16 +34,14 @@ export class CategoriasService {
   }
 
   async findAll(): Promise<Categoria[]> {
-    return await this.categoriaRepository.find({
-      relations: ['productos'], // Incluir productos si los necesitas
+    return await this.categoriaRepository.find({ 
       order: { nombre: 'ASC' }
     });
   }
 
   async findOne(id: number): Promise<Categoria> {
     const categoria = await this.categoriaRepository.findOne({
-      where: { id },
-      relations: ['productos']
+      where: { id }
     });
 
     if (!categoria) {
@@ -71,15 +69,12 @@ export class CategoriasService {
     return await this.categoriaRepository.save(categoria);
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: number): Promise<Categoria> {
     const categoria = await this.findOne(id);
     
-    // Verificar si tiene productos asociados
-    if (categoria.productos && categoria.productos.length > 0) {
-      throw new ConflictException('No se puede eliminar una categoría que tiene productos asociados');
-    }
-
-    await this.categoriaRepository.remove(categoria);
+    
+    categoria.activo=false
+    return await this.categoriaRepository.save(categoria);
   }
 
   

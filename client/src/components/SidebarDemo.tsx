@@ -70,7 +70,6 @@ export function SidebarDemo() {
           </div>
         </SidebarBody>
       </Sidebar>
-      {/* El contenido se renderiza mediante <Outlet /> en el layout */}
       <div className="hidden" />
     </div>
   );

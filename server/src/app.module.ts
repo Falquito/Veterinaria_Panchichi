@@ -5,23 +5,26 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CategoriasModule } from './categorias/categorias.module';
 import { LotesModule } from './lotes/lotes.module';
 import { DepositosModule } from './depositos/depositos.module';
+import { LoteXDeposito } from './entities/LoteXDeposito.entity';
 
 @Module({
   imports: [ProductosModule,
     ConfigModule.forRoot(),
-        //configuro typeORM con un objeto de la ocnfiguracion de la conexion
         TypeOrmModule.forRoot({
           type: 'postgres',
           url:process.env.DB_URL,
-          autoLoadEntities:true,//carga automaticamente las entidades
-          synchronize:true //los cambios en las tablas se sincronizan
+          autoLoadEntities:true,
+          synchronize:false, 
+          entities:[
+            __dirname + '/**/*.entity{.ts,.js}'
+          ]
         }),
         CategoriasModule,
         LotesModule,
-        DepositosModule 
+        DepositosModule,
+        
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule{}
-
+export class AppModule {}

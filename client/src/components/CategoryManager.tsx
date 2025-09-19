@@ -238,12 +238,12 @@ export default function CategoryManager() {
             )}
           </div>
 
-          {/* Tabla mejorada */}
+          {/* Tabla mejorada con scroll fijo */}
           <div className="hidden lg:block">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                     <tr>
                       <Th>Nombre</Th>
                       <Th>Descripción</Th>
@@ -494,8 +494,8 @@ function EditCreateModal({
 
   return (
     <ModalBody>
-      <ModalContent className="p-0 max-w-2xl">
-        <div className="px-6 py-5 border-b border-gray-200">
+      <ModalContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <div className="px-6 py-5 border-b border-gray-200 bg-white sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               {mode === "create" ? (
@@ -518,7 +518,7 @@ function EditCreateModal({
           </div>
         </div>
 
-        <div className="px-6">
+        <div className="px-6 py-4">
           <Tabs
             activeKey={mode}
             onChange={handleTabChange}
@@ -570,7 +570,7 @@ function EditCreateModal({
           />
         </div>
 
-        <ModalFooter className="flex justify-end gap-3 px-6 py-4 bg-gray-50">
+        <ModalFooter className="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-200 sticky bottom-0">
           <button
             type="button"
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500/20 disabled:opacity-50 transition-colors"

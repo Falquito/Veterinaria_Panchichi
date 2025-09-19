@@ -6,6 +6,7 @@ import {
   IconBox,
   IconFileInvoice ,
   IconBuildingWarehouse ,
+  IconHistory
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "../lib/utils";
@@ -26,6 +27,13 @@ export function SidebarDemo() {
         <IconBuildingWarehouse className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-900" />
       ),
 
+    },{
+      label: "Movimientos",
+      href: "/movimientos",
+      icon: (
+        <IconHistory className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-900" />
+      ),
+      
     },
        {
       label: "Orden De Compra",
@@ -35,6 +43,7 @@ export function SidebarDemo() {
       ),
       
     },
+    
     {
       label: "Logout",
       href: "#",

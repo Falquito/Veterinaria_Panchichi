@@ -52,3 +52,44 @@
 
 
 }
+
+.sidebar {
+  width: 40px;
+  height: 300px;
+  background-color: gray;
+  overflow-y: scroll;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+
+
+
+/* Aplica a un contenedor con esta clase */
+.scroll-sm {
+  overflow: auto;                 /* o overflow-x/overflow-y según necesites */
+}
+
+/* Tamaño general */
+.scroll-sm::-webkit-scrollbar { 
+  width: 6px;     /* grosor vertical */
+  height: 6px;    /* grosor horizontal */
+}
+
+/* Si querés tamaños distintos por eje */
+.scroll-sm::-webkit-scrollbar:vertical { width: 6px; }
+.scroll-sm::-webkit-scrollbar:horizontal { height: 8px; }
+
+/* Estilo del pulgar y el track */
+.scroll-sm::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 9999px;
+}
+.scroll-sm::-webkit-scrollbar-track {
+  background: transparent;
+}

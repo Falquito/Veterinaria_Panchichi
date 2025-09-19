@@ -25,7 +25,7 @@ export function DepotFilters({
   totalCount
 }: DepotFiltersProps) {
   return (
-    <div className="px-6 pb-6">
+    <div className=" pb-6">
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">

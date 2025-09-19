@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, MapPin } from 'lucide-react';
+import { Package, MapPin, AlertTriangle, type LucideIcon } from 'lucide-react';
 
 interface DepotMetricsProps {
   total: number;
@@ -8,45 +8,30 @@ interface DepotMetricsProps {
 }
 
 export function DepotMetrics({ total, active, inactive }: DepotMetricsProps) {
+  const metrics: { label: string; value: string; icon: LucideIcon; color: string }[] = [
+    { label: 'Total Depósitos',   value: String(total),   icon: Package,       color: 'bg-blue-50 text-blue-600' },
+    { label: 'Depósitos Activos', value: String(active),  icon: MapPin,        color: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Sin Actividad',     value: String(inactive),icon: AlertTriangle, color: 'bg-amber-50 text-amber-600' },
+  ];
+
   return (
-    <div className="px-6 py-4 ">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 ">
-        <div className="bg-white rounded-lg border shadow-sm  border-gray-200 p-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {metrics.map((m, i) => (
+        <div
+          key={i}
+          className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow duration-200"
+        >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-3xl font-bold text-gray-900">{total}</p>
-              <p className="text-sm text-gray-500">Total Depósitos</p>
+              <p className="text-2xl font-bold text-gray-900 mb-1">{m.value}</p>
+              <p className="text-sm text-gray-600">{m.label}</p>
             </div>
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <Package className="w-6 h-6 text-blue-600" />
+            <div className={`p-3 rounded-lg ${m.color}`}>
+              <m.icon className="w-6 h-6" />
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm ">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold text-gray-900">{active}</p>
-              <p className="text-sm text-gray-500">Depósitos Activos</p>
-            </div>
-            <div className="p-3 bg-green-50 rounded-lg">
-              <MapPin className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm ">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold text-gray-900">{inactive}</p>
-              <p className="text-sm text-gray-500">Sin Actividad</p>
-            </div>
-            <div className="p-3 bg-yellow-50 rounded-lg">
-              <Package className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+      ))}
     </div>
   );
 }

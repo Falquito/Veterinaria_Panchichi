@@ -1,4 +1,4 @@
-// client/src/pages/Depot.tsx - VERSION SIN ANIMACION
+// client/src/pages/Depot.tsx - VERSION CON ANIMACION COMPLETA
 import { useState } from "react";
 import type { Depot } from "../types/depot";
 import { DepotHeader } from "../components/depots/DepotHeader";
@@ -32,10 +32,8 @@ function DepotsContent() {
   } = useDepots();
 
   const [editing, setEditing] = useState<Depot | null>(null);
+  // Actualizado para incluir 'products' en el modalView
   const [modalView, setModalView] = useState<'edit' | 'create' | 'products' | null>(null);
-  
-  // Estado separado para el modal de productos SIN animación
-  const [showProductsModal, setShowProductsModal] = useState(false);
 
   const { setOpen } = useModal();
 
@@ -57,10 +55,11 @@ function DepotsContent() {
     setOpen(true);
   };
 
-  // Nueva función para productos SIN usar el sistema de modales animados
+  // Función actualizada para usar el sistema de modales animados
   const onViewProducts = (depot: Depot) => {
     setViewingProducts(depot);
-    setShowProductsModal(true); // Usar estado independiente
+    setModalView('products');
+    setOpen(true);
   };
 
   const closeModal = () => {
@@ -68,12 +67,6 @@ function DepotsContent() {
     setEditing(null);
     setViewingProducts(null);
     setOpen(false);
-  };
-
-  // Función separada para cerrar modal de productos
-  const closeProductsModal = () => {
-    setShowProductsModal(false);
-    setViewingProducts(null);
   };
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -127,7 +120,7 @@ function DepotsContent() {
         />
       )}
 
-      {/* Modal animado para crear/editar */}
+      {/* Modal animado para TODOS los casos */}
       <ModalBody>
         <ModalContent>
           {(modalView === 'edit' || modalView === 'create') && (
@@ -136,18 +129,14 @@ function DepotsContent() {
               initialData={editing}
             />
           )}
+          {modalView === 'products' && viewingProducts && (
+            <DepotProductsModal  
+              depot={viewingProducts}
+              onClose={closeModal}
+            />
+          )}
         </ModalContent>
       </ModalBody>
-
-      {/* Modal de productos SIN animación - renderizado directamente */}
-      {showProductsModal && viewingProducts && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <DepotProductsModal  
-            depot={viewingProducts}
-            onClose={closeProductsModal}
-          />
-        </div>
-      )}
     </div>
   );
 }

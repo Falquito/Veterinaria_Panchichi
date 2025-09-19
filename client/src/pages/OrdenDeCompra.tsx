@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, Send, Building2, Package, Search, X } from 'lucide-react';
+import { Plus, Trash2, Download, Package, Search, X, Building2, Eye, Calendar, DollarSign } from 'lucide-react';
+import { Modal, ModalBody, ModalContent, useModal } from "../components/ui/animated-modal";
 
 // Types
 interface Proveedor {
@@ -38,15 +39,56 @@ interface CreateOrdenDto {
   }[];
 }
 
-const API_BASE = 'http://localhost:3000'; // Cambia por tu URL del backend
+interface OrdenDeCompra {
+  id_oc: number;
+  fecha: string;
+  total: string;
+  productos: {
+    id: number;
+    cantidad: number;
+    producto: {
+      id: number;
+      nombre: string;
+      descripcion: string;
+      precio: number;
+      categoria: {
+        nombre: string;
+      };
+    };
+  }[];
+  proveedor: {
+    id_proveedor: number;
+    nombre: string;
+    cuit?: string;
+    email?: string;
+    telefono?: string;
+    direccion?: string;
+  };
+}
 
-const OrdenCompraGenerator: React.FC = () => {
+const API_BASE = 'http://localhost:3000';
+
+export default function OrdenCompraSystem() {
+  return (
+    <Modal>
+      <OrdenCompraContent />
+    </Modal>
+  );
+}
+
+function OrdenCompraContent() {
+  // Estados principales
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [ordenes, setOrdenes] = useState<OrdenDeCompra[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
 
+  // Estados para vistas
+  const [vistaActual, setVistaActual] = useState<'lista' | 'nueva'>('lista');
+
+  // Estados del formulario
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState<Proveedor | null>(null);
   const [productosOrden, setProductosOrden] = useState<ProductoOrden[]>([{
     producto: null,
@@ -57,15 +99,28 @@ const OrdenCompraGenerator: React.FC = () => {
   }]);
   const [numeroOrden, setNumeroOrden] = useState('');
   
-  const [modalProveedorAbierto, setModalProveedorAbierto] = useState(false);
-  const [modalProductoAbierto, setModalProductoAbierto] = useState(false);
+  // Estados para modales animados
+  const [modalView, setModalView] = useState<'proveedor' | 'producto' | null>(null);
   const [indiceProductoActual, setIndiceProductoActual] = useState(0);
   const [busquedaProveedor, setBusquedaProveedor] = useState('');
   const [busquedaProducto, setBusquedaProducto] = useState('');
 
+  // Estados para modal de detalles (mantener el modal básico)
+  const [modalDetallesAbierto, setModalDetallesAbierto] = useState(false);
+  const [ordenSeleccionada, setOrdenSeleccionada] = useState<OrdenDeCompra | null>(null);
+
+  const { setOpen } = useModal();
+
+  const verDetallesOrden = (orden: OrdenDeCompra) => {
+    setOrdenSeleccionada(orden);
+    setModalDetallesAbierto(true);
+  };
+
+  // Cargar datos iniciales
   useEffect(() => {
     cargarProveedores();
     cargarProductos();
+    cargarOrdenes();
     generarNumeroOrden();
   }, []);
 
@@ -96,15 +151,12 @@ const OrdenCompraGenerator: React.FC = () => {
 
     if (Array.isArray(data) && data.length && Array.isArray(data[0]?.productos)) {
       rawList = data.flatMap((dep: any) => Array.isArray(dep?.productos) ? dep.productos : []);
-      console.log('📦 Estructura: depósitos -> productos. Cantidad total cruda:', rawList.length);
     }
     else if (Array.isArray(data?.productos)) {
       rawList = data.productos;
-      console.log('📦 Estructura: objeto con productos[]. Cantidad:', rawList.length);
     }
     else if (Array.isArray(data)) {
       rawList = data;
-      console.log('📦 Estructura: array de productos directo. Cantidad:', rawList.length);
     }
     else {
       console.error('❌ Estructura no reconocida:', data);
@@ -125,7 +177,7 @@ const OrdenCompraGenerator: React.FC = () => {
         nombre: String(r?.nombre ?? previo?.nombre ?? '').trim() || `Producto #${id}`,
         descripcion: String(r?.descripcion ?? previo?.descripcion ?? ''),
         precio: Number(r?.precio ?? previo?.precio ?? 0),
-        stock: (Number(previo?.stock ?? 0) + Number(r?.stock ?? 0)) || 0, // suma stock si aparece en varios depósitos
+        stock: (Number(previo?.stock ?? 0) + Number(r?.stock ?? 0)) || 0,
         categoria: String(r?.nombreCategoria ?? r?.categoria?.nombre ?? previo?.categoria ?? ''),
       };
 
@@ -133,10 +185,7 @@ const OrdenCompraGenerator: React.FC = () => {
     }
 
     const lista = Array.from(byId.values());
-
-   
     setProductos(lista);
-    console.log(' Productos normalizados:', lista.slice(0, 3));
   } catch (err: any) {
     console.error('Error cargando productos:', err);
     setError(`Error al cargar productos: ${err?.message ?? err}`);
@@ -144,11 +193,20 @@ const OrdenCompraGenerator: React.FC = () => {
   }
 };
 
-
+  const cargarOrdenes = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/orden-de-compra`);
+      const data = await response.json();
+      setOrdenes(data || []);
+    } catch (error) {
+      console.error('Error cargando órdenes:', error);
+    }
+  };
 
   const seleccionarProveedor = (proveedor: Proveedor) => {
     setProveedorSeleccionado(proveedor);
-    setModalProveedorAbierto(false);
+    setOpen(false);
+    setModalView(null);
   };
 
   const seleccionarProducto = (producto: Producto) => {
@@ -161,7 +219,21 @@ const OrdenCompraGenerator: React.FC = () => {
       subtotal: nuevosProductos[indiceProductoActual].cantidad * producto.precio
     };
     setProductosOrden(nuevosProductos);
-    setModalProductoAbierto(false);
+    setOpen(false);
+    setModalView(null);
+  };
+
+  const abrirModalProveedor = () => {
+    setModalView('proveedor');
+    setBusquedaProveedor('');
+    setOpen(true);
+  };
+
+  const abrirModalProducto = (indice: number) => {
+    setIndiceProductoActual(indice);
+    setBusquedaProducto('');
+    setModalView('producto');
+    setOpen(true);
   };
 
   const actualizarCantidad = (indice: number, cantidad: number) => {
@@ -232,7 +304,7 @@ const OrdenCompraGenerator: React.FC = () => {
 
       if (response.ok) {
         const resultado = await response.json();
-        setSuccess(`Orden de compra creada exitosamente. ID: ${resultado.id_oc}`);
+        setSuccess(`Orden de compra registrada exitosamente. ID: ${resultado.id_oc}`);
         // Resetear formulario
         setProveedorSeleccionado(null);
         setProductosOrden([{
@@ -243,13 +315,16 @@ const OrdenCompraGenerator: React.FC = () => {
           subtotal: 0
         }]);
         generarNumeroOrden();
+        // Recargar órdenes
+        cargarOrdenes();
+        // Volver a la vista de lista
+        setTimeout(() => setVistaActual('lista'), 2000);
       } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Error al crear la orden');
+        const errorText = await response.text();
+        setError(`Error del servidor: ${response.status} - ${errorText}`);
       }
     } catch (error) {
-      setError('Error de conexión con el servidor');
-      console.error('Error:', error);
+      setError(`Error de conexión: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
       setLoading(false);
     }
@@ -264,165 +339,299 @@ const OrdenCompraGenerator: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">Nueva Orden de Compra</h1>
-            <div className="text-sm text-gray-500">
-              N° {numeroOrden}
+    <div className="min-h-screen  p-6">
+      <div className="max-w mx-auto">
+        {/* Header con navegación mejorado */}
+        <div className="bg-white rounded-xl shadow-sm p-8 mb-8 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Órdenes de Compra</h1>
+              <p className="text-gray-600">Gestiona y registra las órdenes de compra de tu inventario</p>
             </div>
-          </div>
-          
-          {/* Información del proveedor */}
-          <div className="border border-gray-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Building2 className="mr-2 h-5 w-5" />
-                Proveedor
-              </h3>
+            <div className="flex space-x-4">
               <button
-                onClick={() => setModalProveedorAbierto(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                onClick={() => setVistaActual('lista')}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  vistaActual === 'lista' 
+                    ? 'bg-black text-white shadow-lg' 
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
               >
-                Seleccionar Proveedor
+                <Eye className="mr-2 h-5 w-5 inline" />
+                Ver Órdenes
+              </button>
+              <button
+                onClick={() => setVistaActual('nueva')}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
+                  vistaActual === 'nueva' 
+                    ? 'bg-black text-white shadow-lg' 
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
+              >
+                <Plus className="mr-2 h-5 w-5 inline" />
+                Nueva Orden
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Vista de Lista de Órdenes (versión original mejorada) */}
+        {vistaActual === 'lista' && (
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-medium">Historial de Órdenes</h3>
+              <p className="text-sm text-gray-500 mt-1">{ordenes.length} órdenes registradas</p>
+            </div>
             
-            {proveedorSeleccionado ? (
-              <div className="bg-blue-50 p-4 rounded-md">
-                <div className="font-semibold text-blue-900">{proveedorSeleccionado.nombre}</div>
-                <div className="text-sm text-blue-700">
-                  CUIT: {proveedorSeleccionado.cuit || 'N/A'} | 
-                  Email: {proveedorSeleccionado.email || 'N/A'} | 
-                  Tel: {proveedorSeleccionado.telefono || 'N/A'}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID Orden
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fecha
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Proveedor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Productos
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total
+                    </th>
+                    
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {ordenes.map((orden) => (
+                    <tr key={orden.id_oc} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <Package className="h-5 w-5 text-gray-400 mr-3" />
+                          <span className="font-medium text-gray-900">#{orden.id_oc}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {orden.fecha}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="font-medium text-gray-900">{orden.proveedor.nombre}</div>
+                          <div className="text-sm text-gray-500">{orden.proveedor.cuit}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          {orden.productos.map((item, index) => (
+                            <div key={index} className="text-sm">
+                              <span className="font-medium">{item.producto.nombre}</span>
+                              <span className="text-gray-500 ml-2">x{item.cantidad}</span>
+                              {item.producto.categoria && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 ml-2">
+                                  {item.producto.categoria.nombre}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <DollarSign className="h-4 w-4 text-green-600 mr-1" />
+                          <span className="font-semibold text-gray-900">${parseFloat(orden.total).toFixed(2)}</span>
+                        </div>
+                      </td>
+                     
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {ordenes.length === 0 && (
+                <div className="p-8 text-center text-gray-500">
+                  <Package className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                  <div className="text-lg font-medium">No hay órdenes registradas</div>
+                  <div className="text-sm">Crea tu primera orden de compra haciendo clic en "Nueva Orden"</div>
                 </div>
-                {proveedorSeleccionado.direccion && (
-                  <div className="text-sm text-blue-700">
-                    Dirección: {proveedorSeleccionado.direccion}
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Vista de Nueva Orden */}
+        {vistaActual === 'nueva' && (
+          <>
+            {/* Header */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-medium text-gray-900">Nueva Orden de Compra</h2>
+                <div className="text-sm text-gray-500">
+                  N° {numeroOrden}
+                </div>
+              </div>
+              
+              {/* Información del proveedor */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium flex items-center">
+                    <Building2 className="mr-2 h-5 w-5" />
+                    Proveedor
+                  </h3>
+                  <button
+                    onClick={abrirModalProveedor}
+                    className="bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors shadow-lg font-medium"
+                  >
+                    <Building2 className="mr-2 h-5 w-5 inline" />
+                    Seleccionar Proveedor
+                  </button>
+                </div>
+                
+                {proveedorSeleccionado ? (
+                  <div className="bg-gray-50 p-4 rounded-md">
+                    <div className="font-medium text-gray-900 mb-2">{proveedorSeleccionado.nombre}</div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>• CUIT: {proveedorSeleccionado.cuit || 'No disponible'}</div>
+                      <div>• Email: {proveedorSeleccionado.email || 'No disponible'}</div>
+                      <div>• Teléfono: {proveedorSeleccionado.telefono || 'No disponible'}</div>
+                      {proveedorSeleccionado.direccion && (
+                        <div>• Dirección: {proveedorSeleccionado.direccion}</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-md p-8 text-center">
+                    <Building2 className="mx-auto h-12 w-12 text-gray-400 mb-3" />
+                    <div className="text-gray-500 font-medium">No se ha seleccionado ningún proveedor</div>
+                    <div className="text-sm text-gray-400 mt-1">Haz clic en "Seleccionar Proveedor" para comenzar</div>
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="text-gray-500 italic">No se ha seleccionado ningún proveedor</div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Tabla de productos */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold flex items-center">
-              <Package className="mr-2 h-5 w-5" />
-              Productos
-            </h3>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {productosOrden.map((item, indice) => (
-                  <tr key={indice}>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => {
-                          setIndiceProductoActual(indice);
-                          setBusquedaProducto(''); // Limpiar búsqueda para mostrar todos
-                          setModalProductoAbierto(true);
-                        }}
-                        className="text-left w-full hover:bg-gray-50 p-2 rounded-md border border-gray-200 transition-colors"
-                      >
-                        {item.producto ? (
-                          <div>
-                            <div className="font-medium">{item.producto.nombre}</div>
-                            <div className="text-sm text-gray-500">{item.descripcion}</div>
-                          </div>
-                        ) : (
-                          <div className="text-gray-500 italic flex items-center">
-                            <Package className="mr-2 h-4 w-4" />
-                            Seleccionar producto...
-                          </div>
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.cantidad}
-                        onChange={(e) => actualizarCantidad(indice, parseInt(e.target.value) || 0)}
-                        className="w-20 p-2 border border-gray-200 rounded-md text-center"
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.precioUnitario}
-                        onChange={(e) => actualizarPrecio(indice, parseFloat(e.target.value) || 0)}
-                        className="w-24 p-2 border border-gray-200 rounded-md text-right"
-                      />
-                    </td>
-                    <td className="px-6 py-4 font-semibold">
-                      ${item.subtotal.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => eliminarProducto(indice)}
-                        disabled={productosOrden.length === 1}
-                        className="text-red-600 hover:text-red-800 disabled:text-gray-400"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="p-6 border-t border-gray-200">
-            <div className="flex justify-between items-center mb-4">
-              <button
-                onClick={agregarProducto}
-                className="flex items-center text-blue-600 hover:text-blue-800"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Agregar producto
-              </button>
-              <div className="text-xl font-bold">
-                Total: ${calcularTotal().toFixed(2)}
+            {/* Tabla de productos */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-lg font-medium flex items-center">
+                  <Package className="mr-2 h-5 w-5" />
+                  Productos
+                </h3>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descripción</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Unit.</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {productosOrden.map((item, indice) => (
+                      <tr key={indice} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => abrirModalProducto(indice)}
+                            className="text-left w-full p-3 border border-gray-300 rounded-md hover:border-gray-500 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 transition-colors"
+                          >
+                            {item.producto ? (
+                              <div>
+                                <div className="font-medium text-gray-900">{item.producto.nombre}</div>
+                                <div className="text-sm text-gray-500">{item.descripcion}</div>
+                                {item.producto.categoria && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mt-1">
+                                    {item.producto.categoria}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-gray-500 flex items-center">
+                                <Package className="mr-2 h-4 w-4" />
+                                Seleccionar producto...
+                              </div>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.cantidad}
+                            onChange={(e) => actualizarCantidad(indice, parseInt(e.target.value) || 0)}
+                            className="w-20 p-2 border border-gray-300 rounded-md text-center focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+                          />
+                        </td>
+                        <td className="px-6 py-4">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.precioUnitario}
+                            onChange={(e) => actualizarPrecio(indice, parseFloat(e.target.value) || 0)}
+                            className="w-24 p-2 border border-gray-300 rounded-md text-right focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+                            disabled={!!item.producto}
+                          />
+                        </td>
+                        <td className="px-6 py-4 font-medium text-gray-900">
+                          ${item.subtotal.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <button
+                            onClick={() => eliminarProducto(indice)}
+                            disabled={productosOrden.length === 1}
+                            className="text-red-600 hover:text-red-800 disabled:text-gray-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="px-6 py-4 border-t border-gray-200">
+                <div className="flex justify-between items-center mb-6">
+                  <button
+                    onClick={agregarProducto}
+                    className="flex items-center text-black hover:text-gray-800 font-medium border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Agregar producto
+                  </button>
+                  <div className="bg-black text-white px-6 py-3 rounded-lg">
+                    <div className="text-sm opacity-80">Total de la Orden</div>
+                    <div className="text-2xl font-bold">
+                      ${calcularTotal().toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-4">
+                  <button
+                    onClick={crearOrden}
+                    disabled={loading || !proveedorSeleccionado}
+                    className="bg-black text-white px-8 py-3 rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium shadow-lg transition-colors"
+                  >
+                    {loading ? 'Registrando...' : 'Registrar Orden'}
+                  </button>
+                  <button className="bg-gray-100 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-200 font-medium border border-gray-300 transition-colors">
+                    <Download className="mr-2 h-4 w-4 inline" />
+                    Descargar PDF
+                  </button>
+                </div>
               </div>
             </div>
-            
-            {/* Botones de acción */}
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={crearOrden}
-                disabled={loading || !proveedorSeleccionado}
-                className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 flex items-center"
-              >
-                <Send className="mr-2 h-4 w-4" />
-                {loading ? 'Enviando...' : 'Enviar Orden'}
-              </button>
-              <button className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 flex items-center">
-                <Download className="mr-2 h-4 w-4" />
-                Descargar PDF
-              </button>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Alertas */}
         {error && (
@@ -436,115 +645,215 @@ const OrdenCompraGenerator: React.FC = () => {
           </div>
         )}
 
-        {modalProveedorAbierto && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-96 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Seleccionar Proveedor</h3>
-                  <button
-                    onClick={() => setModalProveedorAbierto(false)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-6 w-6" />
-                  </button>
-                </div>
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    placeholder="Buscar proveedor..."
-                    value={busquedaProveedor}
-                    onChange={(e) => setBusquedaProveedor(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                  />
-                </div>
-              </div>
-              <div className="overflow-y-auto max-h-64">
-                {proveedoresFiltrados.map((proveedor) => (
-                  <div
-                    key={proveedor.id_proveedor}
-                    onClick={() => seleccionarProveedor(proveedor)}
-                    className="p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100"
-                  >
-                    <div className="font-semibold">{proveedor.nombre}</div>
-                    <div className="text-sm text-gray-500">
-                      CUIT: {proveedor.cuit || 'N/A'} | Email: {proveedor.email || 'N/A'}
+        {/* Modal de Detalles de Orden */}
+        {modalDetallesAbierto && ordenSeleccionada && (
+          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="bg-black px-6 py-4 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Package className="h-5 w-5 mr-2" />
+                    <div>
+                      <h3 className="text-lg font-medium">Detalles de Orden #{ordenSeleccionada.id_oc}</h3>
+                      <p className="text-gray-300 text-sm">Información completa de la orden de compra</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal Selección de Producto */}
-        {modalProductoAbierto && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold">Seleccionar Producto</h3>
                   <button
-                    onClick={() => setModalProductoAbierto(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    onClick={() => setModalDetallesAbierto(false)}
+                    className="text-white hover:text-gray-300"
                   >
                     <X className="h-6 w-6" />
                   </button>
                 </div>
-                <div className="mt-3 flex items-center space-x-2">
-                  <Search className="h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por nombre del producto..."
-                    value={busquedaProducto}
-                    onChange={(e) => setBusquedaProducto(e.target.value)}
-                    className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {busquedaProducto && (
-                    <button
-                      onClick={() => setBusquedaProducto('')}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                <div className="mt-2 text-sm text-gray-500">
-                  Mostrando {productosFiltrados.length} de {productos.length} productos
-                </div>
               </div>
-              <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 140px)' }}>
-                {productosFiltrados.length > 0 ? (
-                  <div className="divide-y divide-gray-100">
-                    {productosFiltrados.map((producto) => (
-                      <div
-                        key={producto.id}
-                        onClick={() => seleccionarProducto(producto)}
-                        className="p-4 hover:bg-blue-50 cursor-pointer transition-colors border-l-4 border-l-transparent hover:border-l-blue-500"
-                      >
+
+              {/* Contenido */}
+              <div className="overflow-y-auto p-6" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  {/* Información de la orden */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                      <Calendar className="h-5 w-5 mr-2" />
+                      Información de la Orden
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">ID de Orden:</span>
+                        <span className="font-medium">#{ordenSeleccionada.id_oc}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Fecha:</span>
+                        <span className="font-medium">{ordenSeleccionada.fecha}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total:</span>
+                        <span className="font-bold text-green-600 text-lg">
+                          ${parseFloat(ordenSeleccionada.total).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Información del proveedor */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                      <Building2 className="h-5 w-5 mr-2" />
+                      Proveedor
+                    </h4>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-gray-600 block">Nombre:</span>
+                        <span className="font-medium">{ordenSeleccionada.proveedor.nombre}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block">CUIT:</span>
+                        <span className="font-medium">{ordenSeleccionada.proveedor.cuit || 'No disponible'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 block">Email:</span>
+                        <span className="font-medium">{ordenSeleccionada.proveedor.email || 'No disponible'}</span>
+                      </div>
+                      {ordenSeleccionada.proveedor.telefono && (
+                        <div>
+                          <span className="text-gray-600 block">Teléfono:</span>
+                          <span className="font-medium">{ordenSeleccionada.proveedor.telefono}</span>
+                        </div>
+                      )}
+                      {ordenSeleccionada.proveedor.direccion && (
+                        <div>
+                          <span className="text-gray-600 block">Dirección:</span>
+                          <span className="font-medium">{ordenSeleccionada.proveedor.direccion}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Productos */}
+                <div className="bg-gray-50 rounded-lg p-6">
+                  <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+                    <Package className="h-5 w-5 mr-2" />
+                    Productos Ordenados
+                  </h4>
+                  <div className="space-y-4">
+                    {ordenSeleccionada.productos.map((item, index) => (
+                      <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <div className="font-semibold text-gray-900">{producto.nombre}</div>
-                            {producto.descripcion && (
-                              <div className="text-sm text-gray-600 mt-1">{producto.descripcion}</div>
+                            <h5 className="font-medium text-gray-900">{item.producto.nombre}</h5>
+                            {item.producto.descripcion && (
+                              <p className="text-sm text-gray-600 mt-1">{item.producto.descripcion}</p>
                             )}
-                            {producto.categoria && (
-                              <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mt-2">
-                                {producto.categoria}
+                            {item.producto.categoria && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mt-2">
+                                {item.producto.categoria.nombre}
                               </span>
                             )}
                           </div>
                           <div className="text-right ml-4">
-                            <div className="font-semibold text-green-600">${producto.precio.toFixed(2)}</div>
-                            <div className="text-sm text-gray-500">Stock: {producto.stock}</div>
-                            {producto.stock > 0 ? (
-                              <span className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mt-1">
-                                Disponible
-                              </span>
-                            ) : (
-                              <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full mt-1">
-                                Sin stock
-                              </span>
+                            <div className="text-sm text-gray-600">Cantidad</div>
+                            <div className="font-bold text-lg">{item.cantidad}</div>
+                            <div className="text-sm text-gray-600">Precio: ${item.producto.precio.toFixed(2)}</div>
+                            <div className="font-medium text-green-600">
+                              Subtotal: ${(item.cantidad * item.producto.precio).toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Resumen */}
+                <div className="mt-6 bg-black text-white rounded-lg p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="text-lg font-semibold">Total de la Orden</h4>
+                      <p className="text-gray-300 text-sm">
+                        {ordenSeleccionada.productos.length} producto(s)
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold">
+                        ${parseFloat(ordenSeleccionada.total).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+                <div className="mt-6 flex justify-end space-x-4">
+                  <button 
+                    onClick={() => setModalDetallesAbierto(false)}
+                    className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                  <button className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors">
+                    <Download className="mr-2 h-4 w-4 inline" />
+                    Descargar PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Animado para Proveedores y Productos */}
+      <ModalBody>
+        <ModalContent>
+          {modalView === 'proveedor' && (
+            <div className="w-full max-w-2xl">
+              {/* Header */}
+              <div className="mb-6">
+                <div className="flex items-center mb-4">
+                  <Building2 className="h-6 w-6 mr-3 text-gray-700" />
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Seleccionar Proveedor</h3>
+                    <p className="text-gray-600">Elige el proveedor para tu orden de compra</p>
+                  </div>
+                </div>
+                
+                {/* Búsqueda */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre, CUIT, email..."
+                    value={busquedaProveedor}
+                    onChange={(e) => setBusquedaProveedor(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                  />
+                </div>
+                
+                <div className="mt-2 text-sm text-gray-500">
+                  {proveedoresFiltrados.length} de {proveedores.length} proveedores
+                </div>
+              </div>
+
+              {/* Lista de proveedores */}
+              <div className="max-h-96 overflow-y-auto">
+                {proveedoresFiltrados.length > 0 ? (
+                  <div className="space-y-3">
+                    {proveedoresFiltrados.map((proveedor) => (
+                      <div
+                        key={proveedor.id_proveedor}
+                        onClick={() => seleccionarProveedor(proveedor)}
+                        className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-all hover:shadow-md"
+                      >
+                        <div className="flex items-start">
+                          <div className="p-2 bg-gray-100 rounded-lg mr-3">
+                            <Building2 className="h-5 w-5 text-gray-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-900">{proveedor.nombre}</div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              CUIT: {proveedor.cuit || 'N/A'} • {proveedor.email || 'Sin email'}
+                            </div>
+                            {proveedor.direccion && (
+                              <div className="text-sm text-gray-500">{proveedor.direccion}</div>
                             )}
                           </div>
                         </div>
@@ -552,24 +861,108 @@ const OrdenCompraGenerator: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-gray-500">
-                    <Package className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-                    <div className="text-lg font-medium">No se encontraron productos</div>
-                    <div className="text-sm">
-                      {busquedaProducto 
-                        ? 'Intenta con otros términos de búsqueda' 
-                        : 'No hay productos disponibles'
-                      }
-                    </div>
+                  <div className="text-center py-12 text-gray-500">
+                    <Search className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                    <div className="text-lg font-medium">No se encontraron proveedores</div>
+                    <div className="text-sm">Intenta con otros términos de búsqueda</div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+
+          {modalView === 'producto' && (
+            <div className="w-full max-w-5xl">
+              {/* Header */}
+              <div className="mb-6">
+                <div className="flex items-center mb-4">
+                  <Package className="h-6 w-6 mr-3 text-gray-700" />
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Catálogo de Productos</h3>
+                    <p className="text-gray-600">Selecciona los productos para tu orden</p>
+                  </div>
+                </div>
+                
+                {/* Búsqueda */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar productos por nombre, categoría, descripción..."
+                    value={busquedaProducto}
+                    onChange={(e) => setBusquedaProducto(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                  />
+                </div>
+                
+                <div className="mt-2 flex justify-between text-sm text-gray-500">
+                  <span>{productosFiltrados.length} de {productos.length} productos</span>
+                  <span>Disponibles: {productosFiltrados.filter(p => p.stock > 0).length} • Sin stock: {productosFiltrados.filter(p => p.stock === 0).length}</span>
+                </div>
+              </div>
+
+              {/* Grid de productos */}
+              <div className="max-h-96 overflow-y-auto">
+                {productosFiltrados.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {productosFiltrados.map((producto) => (
+                      <div
+                        key={producto.id}
+                        onClick={() => seleccionarProducto(producto)}
+                        className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-400 hover:shadow-md cursor-pointer transition-all"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-gray-900 mb-1">{producto.nombre}</h4>
+                            {producto.descripcion && (
+                              <p className="text-sm text-gray-600 mb-2 line-clamp-2">{producto.descripcion}</p>
+                            )}
+                            {producto.categoria && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {producto.categoria}
+                              </span>
+                            )}
+                          </div>
+                          <div className="ml-2">
+                            {producto.stock > 0 ? (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Disponible
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                Sin stock
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                          <div className="text-lg font-semibold text-gray-700">
+                            ${producto.precio.toFixed(2)}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Stock: {producto.stock}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Package className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron productos</h3>
+                    <p className="text-gray-500">
+                      {busquedaProducto 
+                        ? 'Intenta con otros términos de búsqueda' 
+                        : 'No hay productos disponibles'
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </ModalContent>
+      </ModalBody>
     </div>
   );
-};
-
-export default OrdenCompraGenerator;
+}

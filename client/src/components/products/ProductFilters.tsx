@@ -24,13 +24,13 @@ export function ProductFilters({
   stockFilter, setStockFilter,
   viewMode, setViewMode,
   categories, filteredCount, totalCount,
-  statusFilter, setStatusFilter, // 👈 nuevo
+  statusFilter, setStatusFilter, 
 }: ProductFiltersProps) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 mb-8">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Filtros y Búsqueda</h2>
+          <h2 className="font-semibold text-gray-900">Filtros y Búsqueda</h2>
           <p className="text-sm text-gray-600">{filteredCount} de {totalCount} productos encontrados</p>
         </div>
 

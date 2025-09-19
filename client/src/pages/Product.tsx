@@ -101,7 +101,7 @@ const closeModal = () => {
           statusFilter={statusFilter}
           onClearFilters={handleClearFilters}
           onEdit={onEdit}                     
-          onViewWarehouses={onViewWarehouses} 
+          onViewWarehouses={onViewWarehouses} // Nueva prop
           refreshKey={refreshKey}              
         />
       ) : (

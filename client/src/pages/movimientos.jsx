@@ -70,7 +70,7 @@ const Movimientos = () => {
     switch (tipo) {
       case 'INS': return 'Ingreso';
       case 'OUT': return 'Salida';
-      case 'ADJ': return 'Ajuste';
+      case 'UPD': return 'Actualizacion';
       default: return tipo;
     }
   };
@@ -81,7 +81,7 @@ const Movimientos = () => {
         return 'bg-green-100 text-green-800';
       case 'OUT': 
         return 'bg-red-100 text-red-800';
-      case 'ADJ': 
+      case 'UPD': 
         return 'bg-yellow-100 text-yellow-800';
       default: 
         return 'bg-gray-100 text-gray-800';
@@ -94,21 +94,20 @@ const Movimientos = () => {
         return <TrendingUp className="w-4 h-4" />;
       case 'OUT': 
         return <ArrowDown className="w-4 h-4" />;
-      case 'ADJ': 
-        return <RotateCcw className="w-4 h-4" />;
-      default: 
-        return <Package className="w-4 h-4" />;
+      case 'UPD': 
+         return <Package className="w-4 h-4" />;
+      
     }
   };
 
   return (
     <div className="p-6  min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w mx-auto">
         
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-start">{/* no */}
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Movimientos</h1>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Movimientos</h1>
               <p className="text-gray-600 mt-1">Gestiona el historial de movimientos de inventario</p>
             </div>
           </div>{/* no*/}
@@ -185,7 +184,7 @@ const Movimientos = () => {
               <option value="">Todos los tipos</option>
               <option value="INS">Ingresos</option>
               <option value="OUT">Salidas</option>
-              <option value="ADJ">Ajustes</option>
+              <option value="UPD">Actualizacion</option>
             </select>
           </div>
         </div>

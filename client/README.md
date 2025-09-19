@@ -1,7 +1,7 @@
 # 📦 Sistema-de-Gestion-Integral-para-Veterinaria - Frontend
 
 
-
+dasdas
 ### 1. División en Componentes Pequeños
 - **ProductHeader** – Encabezado con título y botón de nuevo producto  
 - **ProductMetrics** – Dashboard con métricas (total, stock, stock bajo)  

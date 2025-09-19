@@ -1,31 +1,42 @@
-import { IsArray, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+// import { PartialType } from '@nestjs/mapped-types';
+// import { CreateProductoDto } from './create-producto.dto';
+
+// export class UpdateProductoDto extends PartialType(CreateProductoDto) {}
+
+
+// dto/update-producto.dto.ts
+import { IsArray, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class DepositoAjusteDto {
-  @IsInt()
-  IdDeposito!: number;
+class DepositoStockDto {
+  @IsNumber()
+  IdDeposito: number;
 
   @IsNumber()
-  cantidad!: number;
+  cantidad: number;
 }
 
 export class UpdateProductoDto {
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   nombre?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   descripcion?: string;
 
-  @IsOptional() @IsNumber() @Min(0)
+  @IsOptional()
+  @Type(() => Number)  
+  @IsNumber()
   precio?: number;
 
-  @IsOptional() @IsInt()
+  @IsOptional()
+  @IsNumber()
   categoriaId?: number;
 
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => DepositoAjusteDto)
-  depositos?: DepositoAjusteDto[];
-
-  // 👇 importantísimo
-  @IsOptional() @IsArray() @IsInt({ each: true })
-  removeDepositos?: number[];
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DepositoStockDto)
+  depositos?: DepositoStockDto[];
 }

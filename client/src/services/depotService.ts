@@ -2,12 +2,11 @@
 import type { Depot, NewDepotPayload, UpdateDepotPayload } from '../types/depot';
 
 const BASE = import.meta.env.VITE_API_URL ?? ''; // ej: 'http://localhost:3000'
-const API  = `${BASE}/api`; // si NO usas setGlobalPrefix('api'), pon simplemente BASE
 
 async function asJson(res: Response) {
   if (!res.ok) {
     const t = await res.text();
-    throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+    throw new Error(`HTTPS ${res.status}: ${t.slice(0,200)}`);
   }
   const ct = res.headers.get('content-type') ?? '';
   if (!ct.includes('application/json')) {
@@ -18,7 +17,7 @@ async function asJson(res: Response) {
 }
 
 export async function listDepots(): Promise<Depot[]> {
-  const res  = await fetch(`${API}/depositos`, { headers: { Accept: 'application/json' } });
+  const res  = await fetch(`${BASE}/depositos`, { headers: { Accept: 'application/json' } });
   const json = await asJson(res);
 
   // Tu findAll devuelve: { items, total, page, limit, pages }
@@ -30,7 +29,7 @@ export async function listDepots(): Promise<Depot[]> {
 }
 
 export async function createDepot(data: NewDepotPayload) {
-  const res = await fetch(`${API}/depositos`, {
+  const res = await fetch(`${BASE}/depositos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
@@ -39,7 +38,7 @@ export async function createDepot(data: NewDepotPayload) {
 }
 
 export async function updateDepot(id: number, data: UpdateDepotPayload) {
-  const res = await fetch(`${API}/depositos/${id}`, {
+  const res = await fetch(`${BASE}/depositos/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(data),
@@ -48,6 +47,6 @@ export async function updateDepot(id: number, data: UpdateDepotPayload) {
 }
 
 export async function deleteDepot(id: number) {
-  const res = await fetch(`${API}/depositos/${id}`, { method: 'DELETE', headers: { Accept: 'application/json' } });
+  const res = await fetch(`${BASE}/depositos/${id}`, { method: 'DELETE', headers: { Accept: 'application/json' } });
   return asJson(res);
 }

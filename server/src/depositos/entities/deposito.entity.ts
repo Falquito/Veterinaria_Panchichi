@@ -1,23 +1,22 @@
-// src/depositos/entities/deposito.entity.ts
-import { LoteXDeposito } from "src/entities/LoteXDeposito.entity";
+import { Producto_Por_Deposito } from "src/entities/Producto_Por_Deposito.entity";
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
-@Entity('deposito') // opcional, pero explicita el nombre de tabla
+@Entity()
 export class Deposito {
 
-  @PrimaryGeneratedColumn('identity')
-  id_deposito: number;
+    @PrimaryGeneratedColumn("identity")
+    id_deposito:number;
 
-  @Column({ type: 'text' })
-  nombre: string;
+    @Column({type:"text"})
+    nombre:string;
 
-  @Column({ type: 'text' })
-  direccion: string;
-
-  @OneToMany(() => LoteXDeposito, (lxd) => lxd.deposito, { eager: false })
-  lotesDeposito: LoteXDeposito[];
+    @Column({type:"text"})
+    direccion:string;
 
 
-  @Column({ type: 'bool', default: true })
-  activo: boolean;
+    @Column({type:"bool"})
+    activo:boolean
+
+    @OneToMany(()=>Producto_Por_Deposito,(prod_por_deposito)=>prod_por_deposito.deposito)
+    productosPorDeposito:Producto_Por_Deposito[]
 }

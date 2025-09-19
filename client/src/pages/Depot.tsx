@@ -1,155 +1,153 @@
-// client/src/pages/Depot.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+// client/src/pages/Depot.tsx - VERSION SIN ANIMACION
+import { useState } from "react";
+import type { Depot } from "../types/depot";
+import { DepotHeader } from "../components/depots/DepotHeader";
+import { DepotMetrics } from "../components/depots/DepotMetrics";
+import { DepotFilters } from "../components/depots/DepotFilters";
+import { DepotTable } from "../components/depots/DepotTable";
+import { DepotGrid } from "../components/depots/DepotGrid";
+import { DepotForm } from "../components/depots/DepotForm";
+import { DepotProductsModal } from "../components/depots/DepotProductsModal";
+import { useDepots, type StatusFilter } from "../hooks/useDepots";
+
 import { Modal, ModalBody, ModalContent, useModal } from "../components/ui/animated-modal";
-import { Plus, Edit, Trash2 } from "lucide-react";
-import { DepotForm } from '../components/depots/DepotForm';
-import * as depotService from '../services/depotService';
-import type { Depot, NewDepotPayload, UpdateDepotPayload } from '../types/depot';
 
-// El componente principal de la página, ahora sin el wrapper al final
-function DepotPageContent() {
-  const [depots, setDepots] = useState<Depot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [editingDepot, setEditingDepot] = useState<Depot | null>(null);
-  const { setOpen } = useModal(); // Hook para controlar el modal
-
-  const fetchDepots = useCallback(async () => {
-  try {
-    setLoading(true);
-    const resp = await depotService.listDepots();
-
-   
-    const arr =
-      Array.isArray(resp) ? resp :
-      Array.isArray((resp as any)?.data) ? (resp as any).data :
-      Array.isArray((resp as any)?.rows) ? (resp as any).rows :
-      Array.isArray((resp as any)?.result) ? (resp as any).result :
-      [];
-
-    setDepots(arr as Depot[]);
-    setError(null);
-  } catch (err) {
-    setError(err instanceof Error ? err.message : 'Error al cargar los depósitos');
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-  useEffect(() => {
-    fetchDepots();
-  }, [fetchDepots]);
-
-  const handleCreate = async (data: NewDepotPayload) => {
-    await depotService.createDepot(data);
-    await fetchDepots();
-  };
-
-  const handleUpdate = async (data: UpdateDepotPayload) => {
-    if (!editingDepot) return;
-    await depotService.updateDepot(editingDepot.id_deposito, data);
-    await fetchDepots();
-  };
-
-  const handleDelete = async (id: number) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este depósito?')) {
-      try {
-        await depotService.deleteDepot(id);
-        await fetchDepots();
-      } catch (err) {
-        alert(`Error al eliminar: ${err instanceof Error ? err.message : 'Error desconocido'}`);
-      }
-    }
-  };
-
-  const openCreateModal = () => {
-    setEditingDepot(null);
-    setOpen(true);
-  };
-
-  const openEditModal = (depot: Depot) => {
-    setEditingDepot(depot);
-    setOpen(true);
-  };
-  
-  const renderContent = () => {
-    if (loading) return <div className="p-4 text-center">Cargando depósitos...</div>;
-    if (error) return <div className="p-4 text-center text-red-600">Error: {error}</div>;
-    if (depots.length === 0) return <div className="p-4 text-center">No hay depósitos registrados.</div>;
-
-    return (
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-neutral-50 text-left">
-              <th className="px-4 py-3 font-medium">Depósito</th>
-              <th className="px-4 py-3 font-medium">Dirección</th>
-              <th className="px-4 py-3 font-medium">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {depots.map((depot) => (
-              <tr key={depot.id_deposito} className="border-t border-neutral-200 hover:bg-neutral-50/60">
-                <td className="px-4 py-3">{depot.nombre}</td>
-                <td className="px-4 py-3">{depot.direccion}</td>
-                <td className="px-4 py-3 text-neutral-500">
-                  <button onClick={() => openEditModal(depot)} className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg mr-2">
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(depot.id_deposito)} className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
+export default function Depots() {
   return (
-    <div className="w-full">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Depósitos</h2>
-          <p className="text-sm text-neutral-500">Gestiona tus centros de almacenamiento</p>
-        </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-black hover:bg-gray-800 text-white px-4 py-2.5 text-sm font-medium"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nuevo Depósito</span>
-        </button>
-      </div>
-
-      <div className="rounded-lg border border-neutral-200 bg-white">
-        <div className="p-4 border-b">
-          <p className="font-semibold">Lista de Depósitos</p>
-          <p className="text-sm text-neutral-500">{depots.length} depósitos registrados</p>
-        </div>
-        {renderContent()}
-      </div>
-
-      {/* El modal ahora se renderiza aquí */}
-      <ModalBody>
-        <ModalContent>
-          <DepotForm
-            onSubmit={editingDepot ? handleUpdate : handleCreate}
-            initialData={editingDepot}
-          />
-        </ModalContent>
-      </ModalBody>
-    </div>
+    <Modal>
+      <DepotsContent />
+    </Modal>
   );
 }
 
-// Componente final que exportamos, ahora sí con el Provider del Modal
-export default function Depositos() {
+function DepotsContent() {
+  const {
+    search, setSearch,
+    region, setRegion,
+    statusFilter, setStatusFilter,
+    viewMode, setViewMode,
+    regions, filtered, metrics,
+    viewingProducts, setViewingProducts,
+    refresh,
+  } = useDepots();
+
+  const [editing, setEditing] = useState<Depot | null>(null);
+  const [modalView, setModalView] = useState<'edit' | 'create' | 'products' | null>(null);
+  
+  // Estado separado para el modal de productos SIN animación
+  const [showProductsModal, setShowProductsModal] = useState(false);
+
+  const { setOpen } = useModal();
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setRegion("Todos");
+    setStatusFilter("Activos");
+  };
+
+  const onCreate = () => {
+    setEditing(null);
+    setModalView('create');
+    setOpen(true);
+  };
+
+  const onEdit = (depot: Depot) => {
+    setEditing(depot);
+    setModalView('edit');
+    setOpen(true);
+  };
+
+  // Nueva función para productos SIN usar el sistema de modales animados
+  const onViewProducts = (depot: Depot) => {
+    setViewingProducts(depot);
+    setShowProductsModal(true); // Usar estado independiente
+  };
+
+  const closeModal = () => {
+    setModalView(null);
+    setEditing(null);
+    setViewingProducts(null);
+    setOpen(false);
+  };
+
+  // Función separada para cerrar modal de productos
+  const closeProductsModal = () => {
+    setShowProductsModal(false);
+    setViewingProducts(null);
+  };
+
+  const [refreshKey, setRefreshKey] = useState(0);
+  const bump = () => setRefreshKey(k => k + 1);
+
+  const handleUpdated = () => {
+    refresh();
+    bump();
+    setOpen(false);
+    setEditing(null);
+  };
+
   return (
-    <Modal>
-      <DepotPageContent />
-    </Modal>
+    <div className="min-h-screen bg-gray-100 p-6">
+      <DepotHeader onCreate={onCreate} />
+      <DepotMetrics {...metrics} />
+
+      <DepotFilters
+        search={search}
+        setSearch={setSearch}
+        region={region}
+        setRegion={setRegion}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        regions={regions}
+        filteredCount={filtered.length}
+        totalCount={metrics.total}
+      />
+
+      {viewMode === "list" ? (
+        <DepotTable
+          search={search}
+          region={region}
+          statusFilter={statusFilter}
+          onClearFilters={handleClearFilters}
+          onEdit={onEdit}
+          onViewProducts={onViewProducts}
+          refreshKey={refreshKey}
+        />
+      ) : (
+        <DepotGrid
+          search={search}
+          region={region}
+          statusFilter={statusFilter}
+          onClearFilters={handleClearFilters}
+          onEdit={onEdit}
+          onViewProducts={onViewProducts}
+          refreshKey={refreshKey}
+        />
+      )}
+
+      {/* Modal animado para crear/editar */}
+      <ModalBody>
+        <ModalContent>
+          {(modalView === 'edit' || modalView === 'create') && (
+            <DepotForm
+              onSubmit={handleUpdated}
+              initialData={editing}
+            />
+          )}
+        </ModalContent>
+      </ModalBody>
+
+      {/* Modal de productos SIN animación - renderizado directamente */}
+      {showProductsModal && viewingProducts && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <DepotProductsModal  
+            depot={viewingProducts}
+            onClose={closeProductsModal}
+          />
+        </div>
+      )}
+    </div>
   );
 }

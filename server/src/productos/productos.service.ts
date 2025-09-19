@@ -1,6 +1,4 @@
-// src/productos/productos.service.ts
 import {
-  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -13,11 +11,11 @@ import { DataSource, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { Categoria } from 'src/categorias/entities/categoria.entity';
-import { MovimientosxLotexDeposito } from 'src/entities/MovimientosXLoteXDeposito.entity';
-import { Lote } from 'src/lotes/entities/lote.entity';
-import { LoteXDeposito } from 'src/entities/LoteXDeposito.entity';
 import { DepositosService } from 'src/depositos/depositos.service';
 import { Deposito } from '../depositos/entities/deposito.entity';
+import { Movimientos } from 'src/entities/Movimientos.entity';
+import { Movimientos_Por_Producto } from 'src/entities/Movimientos_Por_Producto.entity';
+import { Producto_Por_Deposito } from 'src/entities/Producto_Por_Deposito.entity';
 
 @Injectable()
 export class ProductosService {
@@ -32,316 +30,368 @@ export class ProductosService {
   @InjectRepository(Categoria)
   private readonly categoryRepository: Repository<Categoria>;
 
-  @InjectRepository(MovimientosxLotexDeposito)
-  private readonly movimientosRepository: Repository<MovimientosxLotexDeposito>;
-
-  @InjectRepository(Lote)
-  private readonly loteRepository: Repository<Lote>;
-
   @Inject(DepositosService)
   private readonly depositoService: DepositosService;
 
-  @InjectRepository(LoteXDeposito)
-  private readonly lotexDepositoRepository: Repository<LoteXDeposito>;
+  async create(createProductoDto: CreateProductoDto, file: Express.Multer.File) {
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
 
-  // =========================
-  // CREATE
-  // =========================
-  async create(createProductoDto: CreateProductoDto, file?: Express.Multer.File) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
     try {
-      const {
-        categoriaId,
-        fechaelaboracion,
-        fechaVencimiento,
-        depositos,
-        ...productDetails
-      } = createProductoDto;
+      let { categoriaId, fechaelaboracion, fechaVencimiento, depositos, proveedoresId, ...productDetails } =
+        createProductoDto as any;
 
-      // 1) Producto + categoría
-      const categoria = await queryRunner.manager.findOneBy(Categoria, { id: categoriaId });
-      const product = queryRunner.manager.create(Producto, {
+      if (typeof depositos === 'string') {
+        try {
+          depositos = JSON.parse(depositos);
+        } catch {
+          depositos = [];
+        }
+      }
+      if (!Array.isArray(depositos)) depositos = [];
+
+      const categoria =
+        categoriaId != null
+          ? await qr.manager.findOneBy(Categoria, { id: Number(categoriaId) })
+          : null;
+
+      const product = qr.manager.create(Producto, {
         ...productDetails,
+        proveedoresIds: proveedoresId, 
         categoria,
-        ImagenURL: file?.path ?? null, // <- URL pública de Cloudinary
+        ImagenURL: file?.path,
+        fecha_vencimiento: fechaVencimiento,
       });
-      await queryRunner.manager.save(product);
+      await qr.manager.save(product);
 
-      // 2) Lote
-      const lote = queryRunner.manager.create(Lote, {
-        idProducto: product,
-        fechaElaboracion: fechaelaboracion,
-        fechaVencimiento: fechaVencimiento,
+      const movimientoPrincipal = qr.manager.create(Movimientos, {
+        tipo: 'INS',
+        fecha: new Date().toISOString(),
+        motivo: '',
+        observaciones: '',
       });
-      await queryRunner.manager.save(lote);
+      await qr.manager.save(movimientoPrincipal);
 
-      // 3) Movimientos iniciales y LoteXDeposito (activo=true)
       for (const dep of depositos) {
-        const { IdDeposito, cantidad } = dep;
+        const IdDeposito = Number(dep?.IdDeposito);
+        const cantidad = Number(dep?.cantidad) || 0;
 
-        await queryRunner.manager.save(MovimientosxLotexDeposito, {
-          id_producto: product.id,
-          id_lote: lote.idLote,
+        // Línea
+        const linea = qr.manager.create(Movimientos_Por_Producto, {
+          productos: product,
+          movimientos: movimientoPrincipal,
+          cantidad,
           id_deposito: IdDeposito,
-          tipo: 'INS',
-          cantidad: '' + cantidad,
         });
+        await qr.manager.save(linea);
 
-        const totalResult = await queryRunner.manager
-          .createQueryBuilder(MovimientosxLotexDeposito, 'mov')
-          .select('SUM(mov.cantidad)', 'total')
-          .where('mov.tipo = :tipo', { tipo: 'INS' })
-          .andWhere('mov.id_producto = :idProducto', { idProducto: product.id })
-          .andWhere('mov.id_deposito = :idDeposito', { idDeposito: IdDeposito })
+        // Total INS para el producto en ese depósito
+        const { total: totalInsRaw } = await qr.manager
+          .createQueryBuilder(Movimientos_Por_Producto, 'mp')
+          .select('SUM(mp.cantidad)', 'total')
+          .innerJoin(Movimientos, 'm', 'm.id = mp.movimientosId')
+          .where('m.tipo = :tipo', { tipo: 'INS' })
+          .andWhere('mp.productosId = :productoId', { productoId: product.id })
+          .andWhere('mp.id_deposito = :idDeposito', { idDeposito: IdDeposito })
           .getRawOne();
 
-        const total = parseInt(totalResult?.total ?? 0);
-        const deposito = await queryRunner.manager.findOneBy(Deposito, { id_deposito: IdDeposito });
+        const totalIns = Number(totalInsRaw) || 0;
 
-        const lxd = queryRunner.manager.create(LoteXDeposito, {
-          lote,
-          deposito,
-          stock: total,
-          activo: true,
+        const depositoEntity = await qr.manager.findOneBy(Deposito, {
+          id_deposito: IdDeposito,
         });
-        await queryRunner.manager.save(lxd);
+
+        let prodPorDeposito = await qr.manager.findOne(Producto_Por_Deposito, {
+          where: {
+            producto: { id: product.id },
+            deposito: { id_deposito: IdDeposito },
+          },
+          relations: ['producto', 'deposito'],
+        });
+
+        if (!prodPorDeposito) {
+          prodPorDeposito = qr.manager.create(Producto_Por_Deposito, {
+            producto: product,
+            deposito: depositoEntity,
+            stock: totalIns,
+          });
+        } else {
+          prodPorDeposito.stock = totalIns;
+        }
+
+        await qr.manager.save(prodPorDeposito);
       }
 
-      await queryRunner.commitTransaction();
+      await qr.commitTransaction();
       return product;
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      await qr.rollbackTransaction();
       this.handleDbExceptions(error);
     } finally {
-      await queryRunner.release();
+      await qr.release();
     }
   }
 
-  // =========================
-  // READ - LIST
-  // =========================
+ 
   async findAll() {
-    const rows = await this.dataSource.query(`
-      SELECT 
-        d.id_deposito            AS "idDeposito",
-        d.nombre                 AS "nombreDeposito",
-        p.id                     AS "idProducto",
-        p.nombre                 AS "nombreProducto",
-        p.descripcion,
-        p.precio,
-        p.activo                 AS "activo",
-        p."ImagenURL"            AS "imagenURL", 
-        c.nombre                 AS "nombreCategoria",
-        ld.stock
-      FROM producto p
-      JOIN lote l              ON l.id_producto = p.id
-      JOIN lote_x_deposito ld  ON ld.id_lote = l.id_lote AND ld.activo = true
-      JOIN deposito d          ON d.id_deposito = ld.id_deposito
-      LEFT JOIN categoria c    ON c.id = p."categoriaId"
-      ORDER BY d.id_deposito, p.id;
-    `);
+    try {
+      const rows = await this.dataSource.query(`
+        SELECT 
+          d.id_deposito   AS "idDeposito",
+          d.nombre        AS "nombreDeposito",
+          p.id            AS "idProducto",
+          p.nombre        AS "nombreProducto",
+          p.descripcion,
+          p.precio,
+          p.activo, 
+          p."ImagenURL",  
+          c.nombre        AS "nombreCategoria", 
+          pd.stock
+        FROM producto p
+        JOIN producto_por_deposito pd ON pd.id_prod = p.id
+        JOIN deposito d ON d.id_deposito = pd.id_deposito
+        LEFT JOIN categoria c ON c.id = p."categoriaId"
+        ORDER BY d.id_deposito, p.id;
+      `);
 
-    const result = rows.reduce((acc, row) => {
-      let deposito = acc.find((d) => d.idDeposito === row.idDeposito);
-      if (!deposito) {
-        deposito = {
-          idDeposito: row.idDeposito,
-          nombreDeposito: row.nombreDeposito,
-          productos: [],
-        };
-        acc.push(deposito);
-      }
-      deposito.productos.push({
-        id: row.idProducto,
-        nombre: row.nombreProducto,
-        descripcion: row.descripcion,
-        precio: row.precio,
-        stock: row.stock,
-        nombreCategoria: row.nombreCategoria ?? '—',
-        activo: row.activo,
-        imagenURL: row.imagenURL ?? null, 
-      });
-      return acc;
-    }, [] as Array<{
-      idDeposito: number;
-      nombreDeposito: string;
-      productos: Array<{
-        id: number;
-        nombre: string;
-        descripcion: string;
-        precio: number;
-        stock: number;
-        nombreCategoria: string;
-        activo: boolean;
-        imagenURL?: string | null;
-      }>;
-    }>);
+      const result = rows.reduce((acc: any[], row: any) => {
+        let deposito = acc.find((d) => d.idDeposito === row.idDeposito);
+        if (!deposito) {
+          deposito = {
+            idDeposito: row.idDeposito,
+            nombreDeposito: row.nombreDeposito,
+            productos: [],
+          };
+          acc.push(deposito);
+        }
+        deposito.productos.push({
+          id: row.idProducto,
+          nombre: row.nombreProducto,
+          descripcion: row.descripcion,
+          precio: row.precio,
+          stock: row.stock,
+          activo: row.activo,
+          ImagenURL: row.ImagenURL,
+          nombreCategoria: row.nombreCategoria,
+        });
+        return acc;
+      }, []);
 
-    return result;
+      return result;
+    } catch (error) {
+      this.handleDbExceptions(error);
+    }
   }
 
   async findOne(id: number) {
-    if (!Number.isInteger(id)) {
-      throw new BadRequestException('El id debe ser un número entero válido');
-    }
-
-    const rows = await this.dataSource.query(
-      `
-      SELECT 
-        p.id                     AS "idProducto",
-        p.nombre                 AS "nombreProducto",
-        p.descripcion,
-        p.precio,
-        p.activo                 AS "activo",
-        p."ImagenURL"            AS "imagenURL", 
-        c.nombre                 AS "nombreCategoria",
-        d.id_deposito            AS "idDeposito",
-        d.nombre                 AS "nombreDeposito",
-        ld.stock
-      FROM producto p
-      JOIN lote l              ON l.id_producto = p.id
-      JOIN lote_x_deposito ld  ON ld.id_lote = l.id_lote AND ld.activo = true
-      JOIN deposito d          ON d.id_deposito = ld.id_deposito
-      LEFT JOIN categoria c    ON c.id = p."categoriaId"
-      WHERE p.id = $1;
-      `,
-      [id],
-    );
-
-    if (rows.length === 0) {
-      throw new NotFoundException(`Producto con id ${id} no encontrado`);
-    }
-
-    return {
-      idProducto: rows[0].idProducto,
-      nombre: rows[0].nombreProducto,
-      descripcion: rows[0].descripcion,
-      precio: rows[0].precio,
-      categoria: rows[0].nombreCategoria ?? '—',
-      activo: rows[0].activo,
-      imagenURL: rows[0].imagenURL ?? null, 
-      depositos: rows.map((row) => ({
-        idDeposito: row.idDeposito,
-        nombreDeposito: row.nombreDeposito,
-        stock: row.stock,
-      })),
-    };
-  }
-
-  // =========================
-  // UPDATE (acepta imagen opcional)
-  // =========================
-  async update(id: number, updateProductoDto: UpdateProductoDto, file?: Express.Multer.File) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+    let notFound = false;
     try {
-      const { categoriaId, depositos, removeDepositos, ...productData } = updateProductoDto as any;
+      const rows = await this.dataSource.query(
+        `
+        SELECT 
+          p.id            AS "idProducto",
+          p.nombre        AS "nombreProducto",
+          p.descripcion,
+          p.precio,
+          p.activo,
+          p."ImagenURL", 
+          c.nombre        AS "nombreCategoria",
+          d.id_deposito   AS "idDeposito",
+          d.nombre        AS "nombreDeposito",
+          pd.stock
+        FROM producto p
+        JOIN producto_por_deposito pd ON pd.id_prod = p.id
+        JOIN deposito d ON d.id_deposito = pd.id_deposito
+        LEFT JOIN categoria c ON c.id = p."categoriaId"
+        WHERE p.id = $1;
+        `,
+        [id],
+      );
 
-      let categoria = null;
-      if (categoriaId) {
-        categoria = await queryRunner.manager.findOneBy(Categoria, { id: categoriaId });
+      if (rows.length === 0) {
+        notFound = true;
       }
 
-      const productUpdated = await queryRunner.manager.preload(Producto, {
+      const producto = {
+        idProducto: rows[0]?.idProducto,
+        nombre: rows[0]?.nombreProducto,
+        descripcion: rows[0]?.descripcion,
+        precio: rows[0]?.precio,
+        activo: rows[0]?.activo,
+        ImagenURL: rows[0]?.ImagenURL,
+        nombreCategoria: rows[0]?.nombreCategoria,
+        depositos: rows.map((row: any) => ({
+          idDeposito: row.idDeposito,
+          nombreDeposito: row.nombreDeposito,
+          stock: row.stock,
+        })),
+      };
+
+      return producto;
+    } catch (error) {
+      if (notFound) {
+        throw new NotFoundException(`Producto con id ${id} no encontrado`);
+      } else {
+        this.handleDbExceptions(error);
+      }
+    }
+  }
+
+  async update(
+    id: number,
+    updateProductoDto: UpdateProductoDto,
+    file?: Express.Multer.File,
+  ) {
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+
+    try {
+      let { categoriaId, depositos, ...productData } = updateProductoDto as any;
+
+      if (file?.path) {
+        productData.ImagenURL = file.path; 
+      }
+
+      if (typeof depositos === 'string') {
+        try {
+          depositos = JSON.parse(depositos);
+        } catch {
+          depositos = [];
+        }
+      }
+      if (!Array.isArray(depositos)) depositos = [];
+
+      if (productData?.precio !== undefined)
+        productData.precio = Number(productData.precio);
+
+      let categoria: Categoria | null = null;
+      if (categoriaId !== undefined && categoriaId !== null && categoriaId !== '') {
+        categoria = await qr.manager.findOneBy(Categoria, {
+          id: Number(categoriaId),
+        });
+      }
+
+      const productUpdated = await qr.manager.preload(Producto, {
         id,
         ...productData,
         ...(categoria ? { categoria } : {}),
-        ...(file ? { ImagenURL: file.path } : {}), 
       });
-      await queryRunner.manager.save(productUpdated);
+      if (!productUpdated) {
+        throw new NotFoundException(`Producto ${id} no encontrado`);
+      }
+      await qr.manager.save(productUpdated);
 
-      const lotes = await queryRunner.manager.find(Lote, { where: { idProducto: { id } } });
+      const movimiento = qr.manager.create(Movimientos, {
+        tipo: 'UPD',
+        fecha: new Date().toISOString(),
+        motivo: '',
+        observaciones: '',
+      });
+      await qr.manager.save(movimiento);
 
-      if (Array.isArray(depositos) && depositos.length > 0) {
-        for (const dep of depositos) {
-          const { IdDeposito, cantidad } = dep;
-
-          for (const lote of lotes) {
-            await queryRunner.manager.save(MovimientosxLotexDeposito, {
-              tipo: 'UPD',
-              cantidad: '' + cantidad,
-              id_producto: id,
-              id_lote: lote.idLote,
-              id_deposito: IdDeposito,
-            });
-
-            const { total } = await queryRunner.manager
-              .createQueryBuilder(MovimientosxLotexDeposito, 'mov')
-              .select('SUM(mov.cantidad)', 'total')
-              .where('mov.id_producto = :idProducto', { idProducto: id })
-              .andWhere('mov.id_deposito = :idDeposito', { idDeposito: IdDeposito })
-              .getRawOne();
-
-            const stock = parseInt(total) || 0;
-            const depositoEntity = await queryRunner.manager.findOneBy(Deposito, {
-              id_deposito: IdDeposito,
-            });
-
-            let loteXDep = await queryRunner.manager.findOne(LoteXDeposito, {
-              where: { lote: { idLote: lote.idLote }, deposito: { id_deposito: IdDeposito } },
-            });
-
-            if (!loteXDep) {
-              loteXDep = queryRunner.manager.create(LoteXDeposito, {
-                lote,
-                deposito: depositoEntity,
-                stock,
-                activo: true,
-              });
-            } else {
-              loteXDep.stock = stock;
-              if (!loteXDep.activo) loteXDep.activo = true;
-            }
-            await queryRunner.manager.save(loteXDep);
-          }
-        }
+      if (depositos.length === 0) {
+        await qr.commitTransaction();
+        return productUpdated;
       }
 
-      if (Array.isArray(removeDepositos) && removeDepositos.length > 0) {
-        for (const depId of removeDepositos) {
-          for (const lote of lotes) {
-            await queryRunner.manager
-              .createQueryBuilder()
-              .update(LoteXDeposito)
-              .set({ activo: false })
-              .where('id_lote = :idLote AND id_deposito = :depId', {
-                idLote: lote.idLote,
-                depId,
-              })
-              .execute();
-          }
+      for (const dep of depositos) {
+        const IdDeposito = Number(dep?.IdDeposito);
+        const cantidad = Number(dep?.cantidad) || 0;
+
+        const movPorProd = qr.manager.create(Movimientos_Por_Producto, {
+          cantidad,
+          movimientos: movimiento,
+          productos: productUpdated,
+          id_deposito: IdDeposito,
+        });
+        await qr.manager.save(movPorProd);
+
+        const { total: totalUpdRaw } = await qr.manager
+          .createQueryBuilder(Movimientos_Por_Producto, 'mp')
+          .select('SUM(mp.cantidad)', 'total')
+          .innerJoin(Movimientos, 'm', 'm.id = mp.movimientosId')
+          .where('m.tipo = :tipo', { tipo: 'UPD' })
+          .andWhere('mp.productosId = :productoId', { productoId: id })
+          .andWhere('mp.id_deposito = :idDeposito', { idDeposito: IdDeposito })
+          .getRawOne();
+
+        const { total: totalInsRaw } = await qr.manager
+          .createQueryBuilder(Movimientos_Por_Producto, 'mp')
+          .select('SUM(mp.cantidad)', 'total')
+          .innerJoin(Movimientos, 'm', 'm.id = mp.movimientosId')
+          .where('m.tipo = :tipo', { tipo: 'INS' })
+          .andWhere('mp.productosId = :productoId', { productoId: id })
+          .andWhere('mp.id_deposito = :idDeposito', { idDeposito: IdDeposito })
+          .getRawOne();
+
+        const totalUpd = Number(totalUpdRaw) || 0;
+        const totalIns = Number(totalInsRaw) || 0;
+        const nuevoStock = totalIns + totalUpd;
+
+        const depositoEntity = await qr.manager.findOneBy(Deposito, {
+          id_deposito: IdDeposito,
+        });
+
+        let prodPorDeposito = await qr.manager.findOne(Producto_Por_Deposito, {
+          where: {
+            producto: { id },
+            deposito: { id_deposito: IdDeposito },
+          },
+          relations: ['producto', 'deposito'],
+        });
+
+        if (!prodPorDeposito) {
+          prodPorDeposito = qr.manager.create(Producto_Por_Deposito, {
+            producto: productUpdated,
+            deposito: depositoEntity,
+            stock: nuevoStock,
+          });
+        } else {
+          prodPorDeposito.stock = nuevoStock;
         }
+
+        await qr.manager.save(prodPorDeposito);
       }
 
-      await queryRunner.commitTransaction();
+      await qr.commitTransaction();
       return productUpdated;
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      await qr.rollbackTransaction();
       this.handleDbExceptions(error);
     } finally {
-      await queryRunner.release();
+      await qr.release();
     }
   }
 
   async remove(id: number) {
-    const result = await this.productRepository.update({ id }, { activo: false });
-    if (!result.affected) throw new NotFoundException(`Producto ${id} no encontrado`);
-    return { message: `Producto ${id} archivado` };
+    const product = await this.productRepository.findOneBy({ id });
+    if (!product) {
+      throw new NotFoundException(`Producto con id ${id} no encontrado`);
+    }
+    product.activo = false;
+    await this.productRepository.save(product);
+    return { message: `Producto con id ${id} eliminado correctamente` };
   }
 
   async restore(id: number) {
     const result = await this.productRepository.update({ id }, { activo: true });
-    if (!result.affected) throw new NotFoundException(`Producto ${id} no encontrado`);
+    if (!result.affected)
+      throw new NotFoundException(`Producto ${id} no encontrado`);
     return { message: `Producto ${id} restaurado` };
   }
 
+
   private handleDbExceptions(error: any) {
     console.log(error);
-    if (error.code === '23505') {
-      throw new BadRequestException(error.detail);
+    if (error?.code === '42703') {
+      this.logger.error(
+        'El error es: ' + error?.driverError + ' te aconsejo: ' + error?.hint,
+      );
+      throw new InternalServerErrorException(
+        'Error inesperado en el servidor, por favor revise los logs.',
+      );
     }
     this.logger.error(error);
     throw new InternalServerErrorException('Unexpected error, check server logs');

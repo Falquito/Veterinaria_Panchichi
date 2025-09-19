@@ -44,3 +44,11 @@
 
 
 
+.tamanio{
+    height:800px;
+    overflow-y: auto; /* Muestra scroll vertical solo si es necesario */
+    padding: 40px;
+    max-width: 2100px;
+
+
+}

@@ -4,6 +4,7 @@ import { Sidebar, SidebarBody, SidebarLink } from "../components/ui/sidebar";
 import {
   IconArrowLeft,
   IconBox,
+  IconFileInvoice ,
   IconBuildingWarehouse ,
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
@@ -24,6 +25,15 @@ export function SidebarDemo() {
       icon: (
         <IconBuildingWarehouse className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-900" />
       ),
+
+    },
+       {
+      label: "Orden De Compra",
+      href: "/orden-de-compra",
+      icon: (
+        <IconFileInvoice className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-900" />
+      ),
+      
     },
     {
       label: "Logout",
@@ -31,7 +41,10 @@ export function SidebarDemo() {
       icon: (
         <IconArrowLeft className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-900" />
       ),
+      
     },
+    
+    
   ];
   const [open, setOpen] = useState(false);
   return (

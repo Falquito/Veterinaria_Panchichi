@@ -102,6 +102,7 @@ function mapProductWithWarehouses(data: any): Product & { depositos: ProductDepo
 function normalizeFindAll(raw: any): Product[] {
   if (!Array.isArray(raw)) return [];
 
+  // Si ya es “plano” (sin agrupación), map directo
   if (raw.length > 0 && !("productos" in raw[0])) {
     return raw.map(mapToProduct);
   }
@@ -155,7 +156,7 @@ export interface NewProductPayload {
   depositos: Array<{ IdDeposito: number; cantidad: number }>;
   fechaelaboracion: string;
   fechaVencimiento: string;
-  image?: File | null; 
+  image?: File | null;
 }
 
 export async function createProduct(payload: NewProductPayload): Promise<Product> {
@@ -181,12 +182,12 @@ export async function createProduct(payload: NewProductPayload): Promise<Product
     );
     fd.append("fechaelaboracion", payload.fechaelaboracion);
     fd.append("fechaVencimiento", payload.fechaVencimiento);
-    // 👇 El nombre **debe** coincidir con FileInterceptor('image', ...)
+    // Debe coincidir con FileInterceptor('image', ...)
     fd.append("image", payload.image!, payload.image!.name);
 
     res = await fetch(`${PRODUCT_URL}`, { method: "POST", body: fd });
   } else {
-    // JSON clásico
+    // JSON
     res = await fetch(`${PRODUCT_URL}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -214,6 +215,7 @@ export async function createProduct(payload: NewProductPayload): Promise<Product
   const id = Number(created?.id ?? created?.idProducto);
   if (!id) return mapToProduct(created);
 
+  // Traemos el consolidado con depositos
   const after = await getProductById(id);
   return after;
 }
@@ -230,6 +232,10 @@ export async function archiveProduct(id: number): Promise<void> {
   if (!res.ok) throw new Error(`Error archivando producto: ${await res.text()}`);
 }
 
+/**
+ * RESTAURAR producto:
+ * Tu back no expone /restore. La “restauración” es un PATCH al mismo recurso con { activo: true }.
+ */
 export async function restoreProduct(id: number): Promise<void> {
   const res = await fetch(`${PRODUCT_URL}/${id}/restore`, { method: "PATCH" });
   if (!res.ok) throw new Error(`Error restaurando producto: ${await res.text()}`);
@@ -258,7 +264,7 @@ export type UpdateProductPayload = Partial<{
   depositos: Array<{ IdDeposito: number; cantidad: number }>;
   fechaelaboracion: string;
   fechaVencimiento: string;
-   image?: File | null; 
+  image?: File | null;
 }>;
 
 export async function updateProduct(
@@ -270,19 +276,17 @@ export async function updateProduct(
   let res: Response;
 
   if (hasFile) {
-    // Enviar como multipart/form-data
+    // multipart/form-data
     const fd = new FormData();
 
-    // Campos simples (solo si vienen definidos)
     if (payload.nombre !== undefined) fd.append("nombre", String(payload.nombre));
     if (payload.descripcion !== undefined) fd.append("descripcion", String(payload.descripcion));
-    if (payload.precio !== undefined) fd.append("precio", String(payload.precio));
-    if (payload.status !== undefined) fd.append("activo", String(payload.status));
-    if (payload.categoriaId !== undefined) fd.append("categoriaId", String(payload.categoriaId));
+    if (payload.precio !== undefined) fd.append("precio", String(Number(payload.precio)));
+    if (payload.status !== undefined) fd.append("activo", String(Boolean(payload.status)));
+    if (payload.categoriaId !== undefined) fd.append("categoriaId", String(Number(payload.categoriaId)));
     if (payload.fechaelaboracion) fd.append("fechaelaboracion", payload.fechaelaboracion);
     if (payload.fechaVencimiento) fd.append("fechaVencimiento", payload.fechaVencimiento);
 
-    // Arrays/objetos
     if (Array.isArray(payload.depositos)) {
       fd.append(
         "depositos",
@@ -295,15 +299,15 @@ export async function updateProduct(
       );
     }
 
-    // Archivo (el nombre del campo debe coincidir con FileInterceptor('image'))
+    // Debe coincidir con FileInterceptor('image')
     fd.append("image", payload.image as File);
 
     res = await fetch(`${PRODUCT_URL}/${id}`, {
       method: "PATCH",
-      body: fd, 
+      body: fd,
     });
   } else {
-    // JSON normal
+    // JSON
     res = await fetch(`${PRODUCT_URL}/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -311,7 +315,7 @@ export async function updateProduct(
         nombre: payload.nombre,
         precio: payload.precio,
         descripcion: payload.descripcion,
-        activo: payload.status,
+        activo: payload.status,             // back espera 'activo'
         categoriaId: payload.categoriaId,
         depositos: payload.depositos?.map(d => ({
           IdDeposito: Number(d.IdDeposito),
@@ -325,7 +329,7 @@ export async function updateProduct(
 
   if (!res.ok) throw new Error(`Error actualizando producto: ${await res.text()}`);
 
-  // Traemos el consolidado
+  // Devolvemos el consolidado desde findOne
   const after = await getProductById(id);
   return after;
 }

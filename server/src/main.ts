@@ -4,23 +4,19 @@ import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
- 
-  app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:5174'],  
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-  });
-
+  app.enableCors();
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
+      whitelist:true,
+      forbidNonWhitelisted:true,
       transform:true,
-      transformOptions: { enableImplicitConversion: true },
-      forbidNonWhitelisted: true,
-    }),
-  );
-
+      transformOptions: { enableImplicitConversion: true }
+    })
+  )
+  
+  const movimientosRouter = require('./Movimientos/movimientos.routes.js');
+  app.use('/api/movimientos', movimientosRouter);
   await app.listen(process.env.PORT ?? 3000);
+
 }
 bootstrap();
